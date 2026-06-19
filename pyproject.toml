@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "korean-chatbot"
+version = "0.1.0"
+description = "From-scratch Transformer for Korean Chatbot"
+authors = [{name = "Whale.lim(임경락)"}]
+readme = "README.md"
+requires-python = ">=3.10"
+
+[tool.setuptools.packages.find]
+where = ["src"]          # src 폴더를 패키지 루트로 인식

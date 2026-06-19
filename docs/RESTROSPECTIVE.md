@@ -1,0 +1,402 @@
+# 세부 과제 5 - 한국어 챗봇 만들기
+
+## 트러블 슈팅 1 - 모델 아키텍처 선택 (Encoder-Decoder vs Decoder-Only vs Encoder-Only)
+
+### 문제 상황
+
+- 기존에 배운 Transformer 구조는 Encoder + Decoder가 결합된 형태
+- 그러나 GPT, LLaMA 등 생성형 모델은 대부분 Decoder-Only 구조를 사용함
+- 챗봇 과제의 특성(입력 문장을 받아 이어서 생성하는 자동회귀 생성 모델)에 맞는 구조를 선택할 필요
+
+### 고려한 옵션
+
+| 구조              | 주요 용도                                   | 우리 과제 적합도 | 선택 여부 |
+| ----------------- | ------------------------------------------- | ---------------- | --------- |
+| Encoder + Decoder | 번역, 요약, Sequence-to-Sequence            | 보통             | 비선택    |
+| Encoder-only      | 문장 이해, 분류, 검색 (BERT 스타일)         | 낮음             | 비선택    |
+| **Decoder-only**  | 텍스트 생성, 챗봇, 언어 모델링 (GPT 스타일) | **높음**         | **선택**  |
+
+### 결정 및 이유
+
+- 최종 결정: Decoder-Only Transformer
+- 선택 이유:
+  - Decoder-Only 구조는 Causal Mask를 통해 자동회귀 생성을 자연스럽게 지원함.
+  - 과제의 목적이 "문장을 입력받아 자연스럽게 이어서 생성"하는 것이기 때문에 Decoder-Only 구조가 적합
+
+## 트러블 슈팅 2 - 구현의 깊이 수준 선택
+
+### 문제 상황
+
+- "가급적 PyTorch를 사용하지 않고 직접 만들어보는 것"이 해당 과제의 핵심
+- 그러나 "직접 만들기"의 범위가 모호함
+  - `nn.Transformer`, `nn.MultiheadAttention` 같은 "고수준 모듈"까지 사용하지 말아야 하는가?
+  - `nn.Linear`, `nn.LayerNorm` 같은 기본 모듈까지 직접 구현해야 하는가?
+  - Attention 메커니즘만 직접 구현하면 되는가?
+
+### 고려한 옵션
+
+| 옵션 | 내용                                                            | 장점                                | 단점                                                    | 평가                 |
+| ---- | --------------------------------------------------------------- | ----------------------------------- | ------------------------------------------------------- | -------------------- |
+| A    | `nn.Transformer`, `nn.MultiheadAttention` 모두 사용             | 가장 빠르게 구현 가능               | 학습 효과 낮음, 강사님 의도와 거리 있음                 | 비추천               |
+| B ✅ | 기본 모듈(`nn.Linear` 등)은 사용하고, **Attention만 직접 구현** | 학습 효과와 시간 효율의 균형이 좋음 | `nn.MultiheadAttention`을 사용하지 않으므로 구현량 증가 | **선택**             |
+| C    | `nn.Linear`까지 직접 구현                                       | 학습 효과 가장 높음                 | 시간 소모가 매우 큼                                     | 시간 부족으로 비추천 |
+| D    | LSTM으로 먼저 전체 파이프라인을 만들고 Transformer로 교체       | 파이프라인 완성 속도가 빠름         | Transformer 직접 구현 경험이 약해짐                     | 비추천               |
+
+### 결정 및 이유
+
+- 최종 결정: 옵션 B
+  - `nn.Linear`, `nn.LayerNorm`, `nn.Dropout` 등 기본 모듈은 사용하고,
+  - **Attention 메커니즘(Scaled Dot-Product Attention, Multi-Head Attention)은 직접 구현**하는 방향으로 진행.
+
+- 선택 이유
+  - 알렉스가 강조한 "직접 만들기"의 핵심은 **고수준 완성형 모듈(`nn.MultiheadAttention`, `nn.Transformer`)을 블랙박스로 사용하지 않는 것**이라고 판단.
+  - `nn.Linear`와 같은 단순한 기본 모듈까지 직접 구현하는 것은 학습 효과 대비 시간 비용이 크다고 판단.
+  - 제한된 시간 내에 **동작하는 결과물**을 만들면서도, Attention 메커니즘을 직접 구현하는 학습 효과를 어느 정도 확보할 수 있는 가장 현실적인 선택이라고 판단.
+
+- 하위 결정: `nn.Linear` 직접 구현 여부
+  - `nn.Linear`와 같은 기본 모듈까지 직접 구현할지 여부를 별도로 고민
+  - 다만, 학습 효과 대비 시간 비용이 크다고 판단
+  - 최종적으로 `nn.Linear`는 사용하고, Attention 구현에 집중하기로 결정
+
+### 인사이트
+
+- “직접 만들기”의 범위를 무조건 극단적으로 해석하기보다는, **학습 목적과 시간 제약을 함께 고려**하여 현실적인 수준을 정하는 것이 실무에서도 중요할 것으로 예상
+
+## 트러블 슈팅 3 - 개념 이해와 코드 구현 사이의 간극
+
+### 문제 상황
+
+- Transformer의 주요 개념은 어느 정도 이해했으나, 실제 코드로 구현할 시 막막함을 느낌
+- 특히 Scaled Dot-Product Attention의 동작 원리를 코드 수준까지 연결하기 위해 노력
+
+### 결정
+
+- 최종 결정:
+  - FastAPI로 바로 배포할 수 있도록 전체 구조를 설계한 후, Transformer를 적용하기 전 Dummy 데이터 우선 구현
+  - 본격적으로 Transformer 구현하기 에 앞서 바로 전체 코드를 작성하기 보다 Scaled Dot-Product Attention부터 단계적으로 구현하기로 함
+  - 개념과 코드를 최대한 일대일 대응으로 명확히 하면서 점진적으로 구현 범위를 넓혀나가기로 결정
+
+### 진행 계획
+
+1. `ScaledDotProductAttention` 클래스 구현
+2. `MultiHeadAttention` 클래스 구현
+3. `DecoderLayer` 구현
+4. `TransformerDecoder` 구현
+5. 전체 모델 조립 및 학습/생성 파이프라인 연결
+
+### 인사이트
+
+- 개념 이해와 코드 구현 사이에는 상당한 간극이 존재
+- 이를 메우기 위해서는 **작은 단위로 점진적으로 구현하는 것이 효과적**임을 배움
+
+## 트러블 슈팅 4 - Causal Mask의 차원에 따른 코드 수정 위치 정립 (Single Head vs Multi-Head)
+
+### 문제 상황
+
+- `ScaledDotProductAttention` 테스트 중 Causal Mask를 적용했을 때, mask 차원에 따라 결과 shape이 깨지는 현상 발생
+- 처음 AI가 제공한 테스트 코드에서는 테스트용 mask가 4차원으로 생성했으나, `scores`가 3차원이라 broadcasting이 실패하면서 shape이 비정상적으로 변형됨
+- 이 과정에서 **"테스트 코드를 수정해야 하는지, 아니면 `ScaledDotProductAttention` 내부 코드를 수정해야 하는지"** 코드 수정 위치에 따른 "책임 분리 결정"에 대한 고민
+
+### 원인 분석
+
+- `ScaledDotProductAttention`의 `scores`는 `(batch, seq, seq)` 형태의 **3차원** 텐서
+- Multi-Head Attention으로 확장하면 `scores`가 `(batch, heads, seq, seq)` 형태의 **4차원**이 됨
+- 따라서 mask 차원도 단계에 따라 다르게 구성해야 함
+- 차원 개수가 맞지 않으면 `masked_fill`에서 broadcasting이 깨져 shape이 비정상적으로 변형
+
+### 결정 및 대응
+
+- 최종 결정:
+  - 테스트 코드를 수정하여 mask를 3차원으로 맞추는 방향으로 진행
+  - `ScaledDotProductAttention` 내부에서 mask 차원을 자동으로 맞추는 로직은 추가하지 않음
+
+### 결정 이유
+
+- 현재 `ScaledDotProductAttention` 단계는 Mask의 결과가 **3차원** `(batch, seq, seq)` 또는 `(1, seq, seq)`으로 구성되는 것은 정상
+- 이는 **현재 단계에서 테스트의 범주**이며 추후 Multi-Head 까지 확장하여 고려하면, 테스트 코드는 3차원, n차원 등 어떤 차원이든 동일한 결과가 나와야 하는 것도 설득력있는 설계 방법으로 고려할 수 있음.(예시: `shape: (batch_size, n_den, ...)`)
+- 다만 지금은 Single Head이므로 테스트의 범주를 고려했을 때, `ScaledDotProductAttention` 내부에서 mask 차원을 자동으로 맞추는 로직은 과도한 일반화로 판단하여 현재는 추가하지 않음
+- 대신 해당 설계 방법은 추후 확장 과정에서 의미있는 설계 아이디어이므로, `test_attention.py`에 **TODO 주석을 추가**하여 Multi-Head 구현 시 mask 차원 변경이 필요함을 명시
+
+### 인사이트
+
+- Attention 구현 시 mask 차원 관리가 매우 중요함
+- mask 차원이 맞지 않을 때, **어디를 수정할 것인가**에 대한 판단 기준을 세우는 것을 고민
+- Single Head와 Multi-Head 단계에서 mask 차원이 달라질 수 있으므로, 단계별로 mask 구성을 명확히 구분해야 함
+- 차원 불일치로 인한 에러는 디버깅이 어렵기 때문에, 추후 작업으로 표시하고, 현재는 테스트 코드를 수정하는 단계로 변경
+
+## 트러블 슈팅 5 - nn.Linear의 역할 이해 (Q, K, V Projection)
+
+### 문제 상황
+
+- `MultiHeadAttention` 구현 과정에서 `self.q_linear = nn.Linear(d_model, d_model)`과 같이 `nn.Linear`를 사용하는 코드를 작성함
+- `nn.Linear`가 내부적으로 어떤 동작을 하는지, 왜 `in_features`와 `out_features`를 지정해야 하는지, 그리고 `forward` 시점에 실제로 어떤 일이 일어나는지에 대한 이해가 부족했음
+- 특히 "입력 텐서의 마지막 차원 크기와 `in_features`가 일치해야 하는 이유"와 "`d_model, d_model`처럼 동일한 값을 넣는 의미"에 대해 혼란을 겪음
+
+### 원인 분석
+
+- `nn.Linear(in_features, out_features)`는 레이어를 **생성하는 시점**에 내부적으로 `(out_features, in_features)` 크기의 가중치 행렬 W와 bias를 생성함
+- 이 가중치 행렬의 크기를 결정하기 위해 `in_features`와 `out_features`를 미리 지정해야 함
+- 실제 선형 변환(`input @ W.T + bias`)은 `forward` 단계에서 이루어지며, 이때 입력 텐서의 마지막 차원 크기가 `in_features`와 정확히 일치해야 행렬 곱셈이 정상적으로 수행됨
+- `d_model, d_model`처럼 입력과 출력 차원이 같을 경우에도, 단순히 차원을 유지하는 것이 아니라 **입력 정보를 특정 관점(Q, K, V)으로 재해석**하는 의미가 있음
+
+### 결정 및 대응
+
+- `nn.Linear`의 동작 원리를 다음과 같이 정리함:
+  - 레이어 생성 시(`__init__`): 가중치 행렬 W 생성 및 변환 준비
+  - 실제 사용 시(`forward`): 입력 텐서의 마지막 차원을 기준으로 선형 변환 수행
+- `in_features`와 입력 텐서의 마지막 차원 크기가 일치해야 한다는 점을 명확히 인지
+- `d_model, d_model`처럼 동일한 값을 사용하는 경우에도 **정보의 재해석**이라는 의미가 있음을 이해
+
+### 인사이트
+
+- `nn.Linear`는 단순히 차원을 늘리거나 줄이는 도구가 아니라, **학습 가능한 선형 변환**을 수행하는 레이어임
+- 레이어를 생성하는 시점과 실제 데이터를 넣는 시점을 명확히 구분해야 함
+- `in_features`는 입력 텐서의 마지막 차원 크기와 반드시 일치해야 하며, 이는 행렬 곱셈의 차원 조건 때문임
+- `d_model, d_model`처럼 동일한 값을 사용하는 것은 차원을 유지하면서도 입력 정보를 특정 목적(Q, K, V)에 맞게 재해석하기 위한 설계임을 이해함
+
+## 트러블 슈팅 6 - 폴더 구조에 따른 Import 에러 해결 (sys.path 수동 추가 방식)
+
+### 문제 상황
+
+- 프로젝트를 `src` 레이아웃으로 재구성한 후, `tests/` 폴더에서 모델 코드를 import하려고 했을 때 `ModuleNotFoundError: No module named 'src'` 에러가 발생함
+- 예시 에러
+
+  ```bash
+  from src.model.decoder_layer import DecoderLayer
+  ModuleNotFoundError: No module named 'src'
+  ```
+
+### 원인 분석
+
+- Python은 기본적으로 sys.path에 등록된 경로만 모듈을 검색함
+- `src` 폴더는 Python이 자동으로 인식하는 경로가 아니기 때문에, `from src.xxx import` 형태의 import가 실패함
+- `src`를 패키지 루트로 인식할 필요
+
+### 결정 및 대응
+
+- 가장 기본적인 방법으로 테스트 파일 상단에 프로젝트 루트 경로를 동적으로 추가하는 방식 적용
+- 코드 예시
+
+  ```python
+  import sys
+  import os
+
+  # 프로젝트 루트 경로 추가하여 임포트 에러 해결
+  __TEST_FOLDER_PATH__ = os.path.dirname(__file__)
+  joined_root_path = os.path.join(__TEST_FOLDER_PATH__, '..')
+  absoluted_joined_root_path = os.path.abspath(joined_root_path)
+  sys.path.append(absoluted_joined_root_path)
+  ```
+
+  - 이 코드를 통해 현재 테스트 파일의 위치를 기준으로 프로젝트 루트 경로를 계산한 후, sys.path에 추가하여 import가 가능하도록 함
+
+### 인사이트
+
+- sys.path.append 방식은 빠르게 문제를 해결할 수 있지만, 테스트 파일이 많아질수록 모든 파일에 동일한 코드를 중복해서 작성해야 한다는 단점이 있음
+- 장기적으로는 유지보수성과 확장성이 떨어지는 방식이라는 점을 인지함
+
+## 트러블 슈팅 7 - 확장 가능한 Import 해결을 위한 pyproject.toml 도입
+
+### 문제 상황
+
+- 프로젝트를 `src` 레이아웃으로 재구성하면서 `tests/` 폴더에서 모델 코드를 import할 때 `ModuleNotFoundError: No module named 'src'` 에러가 발생함
+- 초기에는 테스트 파일 상단에 `sys.path.append`를 통해 프로젝트 루트 경로를 수동으로 추가하는 방식으로 문제를 해결했으나, 이 방식은 파일이 많아질수록 모든 테스트 파일에 동일한 코드를 반복적으로 작성해야 한다는 **유지보수 문제**를 안고 있었음
+- 또한 `scripts/generate.py`처럼 별도 폴더에 있던 실행 스크립트에서 모델을 import할 때도 동일한 문제가 발생하여, 구조적으로 일관된 해결책이 필요하다고 판단
+
+### 원인 분석
+
+- `src` 레이아웃을 사용하면서 `pip install -e .`을 적용하지 않은 상태에서는 Python이 `src` 폴더를 패키지 루트로 인식하지 못함
+- `sys.path.append` 방식은 단기적인 해결책일 뿐, 프로젝트 규모가 커질수록 기술 부채가 될 가능성이 높음
+- 내부 파일들(`decoder_layer.py`, `transformer_model.py` 등)에서도 `from src.model...` 형태의 import가 남아 있어, `pip install -e .` 적용 후에도 충돌이 발생
+- 실행 스크립트(`generate.py`, `main.py`)를 별도로 두고 import하려는 시도 또한 구조적으로 일관성을 해치는 요인이 되었음
+
+### 결정 및 대응
+
+- 장기적인 유지보수성과 확장성을 확보하기 위해 `pyproject.toml`을 도입하고, `pip install -e .`를 통해 프로젝트를 개발 모드로 설치하는 방식으로 전환
+- `pyproject.toml` 소스 코드
+
+  ```toml
+  [build-system]
+  requires = ["setuptools>=61.0"]
+  build-backend = "setuptools.build_meta"
+
+  [project]
+  name = "korean-chatbot"
+  version = "0.1.0"
+  description = "From-scratch Transformer for Korean Chatbot"
+  authors = [{name = "Whale.lim(임경락)"}]
+  readme = "README.md"
+  requires-python = ">=3.10"
+
+  [tool.setuptools.packages.find]
+  where = ["src"]
+  ```
+
+  - `where = ["src"]` 설정을 통해 src 폴더를 패키지 루트로 지정하고, editable install을 적용
+    - editable install: 소스 코드를 복사하지 않고 원본 위치를 그대로 참조하여 설치하는 방식, 코드 수정 시 별도의 재설치 없이 바로 반영 가능하여 개발 중인 상황에서 자주 사용되어 "개발 모드"라고 표현
+  - 기존에 `scripts/` 폴더에 있던 `generate.py`, `main.py` 등을 `src/` 하위로 이동시켜 구조를 단순화
+  - 모든 파일에서 `from src.model...`, `from src.tokenizer...` 형태의 import를 `from model...`, `from tokenizer...`으로 정리
+
+- pyproject.toml 동작 원리에 대해 학습 병행
+  - `pip install -e .`를 실행하면 아래와 같은 내부 동작이 실행
+    1. setuptools가 `pyproject.toml`을 읽는다.
+       - setuptools: 파이썬에서 패키지를 만드록 배포할 때 사용하는 빌드 도구(Build Backend) 중 하나.
+    2. [tool.setuptools.packages.find] where = ["src"] 설정을 보고, src 폴더를 패키지의 루트로 인식한다.
+    3. 가상환경의 `.venv/bin/lib/python3.14/site-packages` 폴더 안에 `korean-chatbot.egg-link` 파일(경우에 따라 .pth 파일도)이 생성된다.
+    4. 이 `.egg-link` 파일에는 프로젝트 루트 경로가 기록되어 있으며, 이를 통해 가상환경에게 해당 경로를 sys.path에 추가하라고 알려준다.
+    5. 결과적으로 src 아래에 있는 model, tokenizer 폴더를 최상위 패키지처럼 인식하게 되어, `from model.xxx import ...`, `from tokenizer.xxx import ...` 형태의 깔끔한 import가 가능해진다.
+
+### 인사이트
+
+- `sys.path.append` 방식은 빠르게 문제를 해결할 수는 있지만, 파일 수가 증가할수록 유지보수 비용이 기하급수적으로 늘어난다는 것을 경험
+- `pyproject.toml` + `pip install -e .` 방식은 Python 패키지 시스템을 제대로 활용하는 방법으로, 장기적인 관점에서 훨씬 안정적이고 확장성이 뛰어남
+- `src` 레이아웃을 도입할 경우, 단순히 폴더 구조만 바꾸는 것이 아니라 import 경로 전체를 일관되게 정리해야 한다는 점을 깨달음
+- 실행 스크립트(`generate.py`, `main.py` 등)도 `src/` 하위에 두는 것이 구조적으로 더 일관되고 관리하기 쉬움
+- "만약 변경해야 될 파일이 1,000개라면"이라는 가정으로 생각했을 때, 초기 단계부터 패키지 구조와 import 전략을 신경 쓰는 것이 나중에 대규모 리팩토링을 방지하는 가장 효과적인 방법이라는 것을 확인
+
+## 트러블 슈팅 8 - Pyright 타입 추론의 맥락 의존성 (Context-Sensitive Type Inference)
+
+### 문제 상황
+
+- `_merge_vocab()` 메서드 호출 여부에 따라 Pyright에서 타입 에러가 발생하거나 발생하지 않는 현상이 관찰됨
+- 구체적으로 아래 코드
+
+  ```python
+  # bpe_tokenizer.py
+  pairs = self._get_stats(vocab)
+  ...
+  best_pair = max(pairs, key=pairs.get)   # 여기서 타입 에러 발생 여부가 갈림
+  vocab = self._merge_vocab(best_pair, vocab)
+  ```
+
+  - `_merge_vocab()` 호출 라인을 주석 처리하면 `max()`에서 타입 오버로드 에러가 발생하고, 주석을 해제하면 에러가 사라지는 현상이 발생함.
+
+### 원인 분석
+
+- 이 현상은 Pyright의 고급 타입 추론 방식 때문에 발생한다.
+- Pyright는 단순히 한 줄씩 독립적으로 타입을 추론하는 것이 아니라, **함수 전체의 제어 흐름(Control Flow)**과 **데이터 흐름(Data Flow)**을 함께 분석한다. 특히 다음과 같은 특성을 가지고 있다:
+  - Flow-sensitive Typing: 변수의 타입이 코드 흐름에 따라 좁혀지거나 변화할 수 있음
+  - Context-sensitive Type Inference: 이후에 나오는 코드(사용 맥락)가 이전 코드의 타입 추론에 영향을 줄 수 있음
+  - Bidirectional Type Inference: 타입 추론이 위에서 아래로만 진행되는 것이 아니라, 아래에서 위로도 영향을 줄 수 있음
+- 결과적으로 `_merge_vocab()` 호출이 존재하면 Pyright가 `vocab` 변수의 타입을 더 구체적으로 추론하게 되고, 이로 인해 `pairs.get`의 반환 타입도 `int`로 더 확신 있게 판단하여 `max()` 호출에서 타입 에러가 발생하지 않았다.
+- 반대로 해당 호출이 없으면 타입을 보수적으로 추론하여 `int | None`으로 판단하면서 에러가 발생한 것이다.
+
+### 결정 및 대응
+
+- 해당 현상이 런타임 에러가 아닌 정적 타입 체커(Pyright)의 동작 방식에 의한 것임을 인지
+- 타입 에러를 해결하기 위해 아래 두 가지 방식 중 하나를 선택하여 적용:
+  1. `max(pairs.items(), key=lambda item: item[1])[0]` 방식으로 변경 (타입 안전성 확보)
+  2. `# type: ignore` 주석을 사용하여 타입 체커를 우회 (단기적 해결)
+
+### 인사이트
+
+- Pyright와 같은 현대적인 타입 체커는 단순한 타입 검사기를 넘어 코드의 맥락과 흐름을 이해하려고 시도한다는 것을 경험함
+- `bidirectional type inference`, `context-sensitive inference`, `flow-sensitive typing`과 같은 개념이 실제 코드에서 어떻게 동작하는지 직접 확인할 수 있었음
+- 타입 에러가 발생할 때 단순히 "타입이 안 맞는다"고만 생각하지 않고, **타입 체커가 코드를 어떻게 분석하고 있는지** 역으로 추론해보는 습관을 키울 수 있었음
+- 앞으로 복잡한 타입 에러를 만났을 때, "이 에러가 발생하는 이유가 타입 체커의 추론 방식 때문일 수 있다"는 관점을 가질 수 있게 됨
+- 타입 체커의 동작 원리를 깊이 이해하는 것이, 단순히 타입 에러를 피하는 것을 넘어 더 나은 코드 설계와 디버깅 능력으로 이어질 수 있다는 것을 확인
+
+## 트러블 슈팅 9 - BPE train() 구현 과정에서 발생한 기술적 버그 수정
+
+### 문제 상황
+
+- BPETokenizer의 `train()` 메서드를 구현하는 과정에서, `token_to_id`에 `hello</w>, low</w>, lowe, newe` 등 비정상적인 토큰이 다수 포함되는 현상이 발생했다.
+- `_get_stats()`와 `_merge_vocab()` 자체는 어느 정도 동작했으나, 여러 기술적 오류로 인해 학습 결과가 왜곡되었다.
+
+### 원인 분석 &rarr; 결정 및 대응 &rarr; 결과
+
+1. 초기 `word_freq` 생성 시 key 설정 오류
+   - **동작되지 않았던 문제**: 초기 단어 데이터를 구성할 때 key를 잘못 지정하여, 문자 단위로 쪼갠 데이터가 제대로 저장되지 않았다.
+   - **개선한 코드**:
+
+     ```python
+      # 수정 전
+      word_freq[word] = word_freq.get(word_tokens, 0) + 1
+
+      # 수정 후
+      word_freq[word_tokens] = word_freq.get(word_tokens, 0) + 1
+     ```
+
+   - **결과**: 초기 데이터가 올바르게 구성되기 시작하면서, 이후 병합 과정이 의미 있는 방향으로 동작할 수 있는 기반이 마련되었다. (토크나이저의 데이터 초기화 정확도 개선)
+
+2. `_merge_vocab()`에서 빈도 누적 방식 오류
+   - **동작되지 않았던 문제**: 병합 후 동일한 형태로 수렴하는 단어들의 빈도가 덮어쓰여, 실제 빈도 정보가 손실되었다.
+   - **개선한 코드**:
+
+     ```python
+      # 수정 전
+      new_vocab[new_word] = freq
+
+      # 수정 후
+      new_vocab[new_word] = new_vocab.get(new_word, 0) + freq
+     ```
+
+   - **결과**: 병합 과정에서 빈도가 제대로 누적되기 시작하면서, 가장 빈번한 pair를 더 정확하게 판단할 수 있게 되었다. (토크나이저의 병합 정확도 개선)
+
+3. 최종 `token_to_id` 구축 방식의 한계
+   - **동작되지 않았던 문제**: `word_freq.keys()`만을 기준으로 토큰을 수집하여, 병합 과정에서 생성된 다양한 서브워드들이 제대로 반영되지 않았다.
+   - **개선한 코드**:
+
+     ```python
+     for word in word_freq:
+         all_tokens.update(word.split())
+
+     # (추가) merge_rules에 등장한 토큰까지 수집
+     for pair in self.merge_rules:
+         all_tokens.add(''.join(pair))
+     ```
+
+   - **결과**: `merge_rules`에서 생성된 병합 토큰(`lo`, `we`, `st` 등)까지 `token_to_id`에 포함되면서, 전체 토큰 수가 증가하고 서브워드 단위의 다양성이 어느 정도 확보되었다. (토크나이저의 vocabulary 품질 개선)
+
+### 인사이트
+
+- BPE에서 `_merge_vocab`은 단순한 문자열 치환 함수가 아니라, 빈도를 정확히 유지하며 병합 결과를 반영하는 핵심 로직이라는 점을 깨달음
+- 최종 `token_to_id`를 구성할 때는 현재 상태뿐만 아니라 병합 이력(`merge_rules`)까지 함께 고려해야 더 풍부한 서브워드 vocabulary를 만들 수 있음을 경험함
+- `train()`의 여러 부분에서 작은 구현 오류가 누적되면서 전체 학습 결과가 크게 왜곡될 수 있다는 점을 확인함
+- 코드 수정 시 “어떤 부분이 BPE의 본질적인 동작 원리와 맞지 않았는지”를 명확히 정의하고, 그에 맞춰 구체적인 로직을 개선하는 방식이 효과적임을 깨달음
+
+## 트러블 슈팅 10 - BPE의 본질 이해 부족으로 인한 학습 로직 설계 한계
+
+- 이 트러블 슈팅은 단순한 구현 오류가 아니라, **BPE의 본질을 이해하지 못한 상태에서 코드를 작성했던 개념적 한계를 기록한 내용**
+
+### 문제 상황
+
+- `train()` 메서드를 구현하면서 `_get_stats()`와 `_merge_vocab()`은 어느 정도 동작했으나, 전체적인 학습 구조가 BPE의 의도된 방향과 맞지 않아 의미 있는 vocabulary가 만들어지지 않았다.
+- 특히 `token_to_id`에 전체 단어(`low</w>`, `hello</w>`)가 그대로 남거나, `lowe`, `newe` 같은 비정상적인 중간 형태의 토큰이 다수 포함되는 문제가 발생했다.
+
+### 원인 분석
+
+- BPE를 구현하면서 단순히 "pair를 합친다"는 구현 로직에만 집중한 것이 주요 원인이었다.
+- BPE의 진짜 목적은 단순한 병합이 아니라, "**데이터를 압축하면서도 정보 손실을 최소화하는 방식으로 텍스트를 표현하는 것**"이다.
+- 이 목적을 달성하기 위한 동작 원리는 **정보 이론(Information Theory)**에 기반한다.
+  - Entropy: 자주 등장하는 패턴일수록 하나의 심볼로 표현하는 것이 정보적으로 효율적이다.
+  - Minimum Description Length (MDL): 데이터를 가장 짧게 설명할 수 있는 표현이 가장 좋은 표현이다.
+  - BPE는 이 원리를 **greedy**하게 근사하여, 가장 빈번한 pair부터 반복적으로 병합함으로써 전체 Description Length를 줄이는 방향으로 vocabulary를 구성한다.
+
+- 그러나 초기 `train()` 구현에서는 이러한 이론적 배경을 제대로 이해하지 못한 채, `len(vocab)`을 기준으로 반복을 제어하거나, 최종 `token_to_id`를 `vocab.keys()`만으로 구성하는 등 BPE의 본질과 맞지 않는 구조로 설계했다.
+
+### 결정 및 대응
+
+- BPE의 목적과 동작 원리를 정보 이론 관점에서 재정립하고, 그에 맞춰 `train()`의 방향성을 수정했다.
+  - **BPE가 빈도 기반 데이터 압축** 알고리즘임을 인식
+  - `_merge_vocab()`에서 빈도 누적 로직을 적용
+  - 최종 `token_to_id` 구축 시 `merge_rules`에 등장한 토큰까지 수집하는 방식으로 개선
+  - `train()`의 반복 조건을 `len(vocab)` 대신 병합 횟수(`merges_needed`) 기반으로 변경
+
+### 인사이트
+
+- BPE는 단순한 문자열 병합 알고리즘이 아니라, **정보 이론**과 **데이터 압축의 원리**를 바탕으로 한 **subword tokenization 기법**이라는 점을 깨달음
+- 구현에 앞서 "**왜 이런 방식으로 동작해야 하는가?**"에 대한 이론적 이해가 선행되어야, 올바른 구조로 코드를 설계할 수 있음
+- `train()`에서 `len(vocab)`을 기준으로 반복을 제어하거나, 최종 vocabulary를 단순히 현재 상태에서만 추출하는 방식은 BPE의 본질과 맞지 않다는 것을 경험함
+- 앞으로 subword tokenization 관련 알고리즘을 구현할 때는, `정보 이론적 배경(MDL, Entropy)`을 먼저 이해하고 접근하는 것이 중요하다는 교훈을 얻음
+- 코드의 기술적 버그 수정도 중요하지만, `알고리즘의 철학과 목적`을 이해하는 것이 더 근본적인 해결책이 될 수 있음을 확인
+
+## 트러블 슈팅 0 - OOO
+
+### 문제 상황
+
+### 원인 분석
+
+### 결정 및 대응
+
+### 인사이트
