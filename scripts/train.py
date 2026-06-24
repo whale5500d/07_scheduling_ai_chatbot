@@ -36,7 +36,14 @@ def main():
         "they are watching a movie",
     ]
 
-    # TODO 2: BPE Tokenizer 초기화 및 학습
+    # BPE Tokenizer 초기화 및 학습
+    VOCAB_SIZE = 200 # 초기값으로 150~300 정도, 추후 학습하면서 조정하는 방식으로 진행
+    # 50~100으로 너무 작으면, <unk>가 많이 발생
+    # 500~1000으로 너무 크면, 작은 데이터에서는 의미없는 토큰이 많아질 수 있음
+    tokenizer = BPETokenizer(vocab_size=VOCAB_SIZE)
+    tokenizer.train(train_corpus)
+    print(f"Tokenizer Vocabulary size: {len(tokenizer.token_to_id)}")
+
     # TODO 3: TransformerLanguageModel 초기화
     # TODO 4: Loss Function, Optimizer 정의
     # TODO 5: 학습 루프 구현 (Next Token Prediction)
