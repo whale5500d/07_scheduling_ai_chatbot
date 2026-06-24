@@ -62,7 +62,54 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
-    # TODO 5: 학습 루프 구현 (Next Token Prediction)
+    # 학습 루프 구현 (Next Token Prediction)
+    """
+        현재 학습 루프의 특징
+        - 데이터가 매우 작기 때문에 문장 단위로 학습하도록 구현
+        - 배치 처리는 아직 하지 않고, 한 문장씩 학습 (최소 구현)
+        - num_epochs = 50으로 설정 (나중에 조정 가능)
+    """
+    num_epochs = 50
+
+    for epoch in range(num_epochs):
+        total_loss = 0
+
+        for sentence in train_corpus:
+            # 1. 문장을 토큰화
+            input_ids = tokenizer.encode(sentence)
+
+            # 너무 짧은 문장은 제외 (최소 2토큰 이상)
+            if len(input_ids) < 2:
+                continue
+
+            input_ids = torch.tensor([input_ids])  # (1, seq_len)
+
+            # 2. Next Token Prediction을 위한 shift
+            # input: [t0, t1, t2, ..., t_{n-1}]
+            # label: [t1, t2, ..., t_n]
+            inputs = input_ids[:, :-1]
+            labels = input_ids[:, 1:]
+
+            # 3. Forward
+            outputs = model(inputs)  # (1, seq_len-1, vocab_size)
+
+            # 4. Loss 계산
+            loss = criterion(
+                outputs.view(-1, vocab_size),   # (seq_len-1, vocab_size)
+                labels.view(-1)                 # (seq_len-1)
+            )
+
+            # 5. Backward + Optimizer step
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            total_loss += loss.item()
+
+        avg_loss = total_loss / len(train_corpus)
+        if (epoch + 1) % 10 == 0 or epoch == 0:
+            print(f"Epoch [{epoch+1:3d}/{num_epochs}] | Loss: {avg_loss:.4f}")
+
     # TODO 6: 학습 후 generate 결과 확인
 
     print("\n=== 학습 루프 종료 ===")
