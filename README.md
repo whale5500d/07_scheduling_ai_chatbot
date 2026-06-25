@@ -11,11 +11,14 @@
 
 ## 현재 진행 상황 및 테스트 결과 (2026.06.19 기준)
 
-### FastAPI + 실제 모델 연결 완료
-
-- `generate.py`를 더미 로직에서 `TransformerLanguageModel` + `BPETokenizer` 기반으로 교체
-- `main.py`에 lifespan을 적용하여 모델 로딩 구조 개선
-- `/generate` 엔드포인트가 실제 모델을 호출하도록 연결 완료
+**모델 개선 사항 진행 현황**
+| 단계 | 내용 | 언어 | 목표 | 상태 |
+| --- | --- | --- | --- | --- |
+| 1단계 | BPE + Transformer 연결 안정화 | 영어 | OOV 에러 없이 동작, generate() 흐름 검증 | ✅ 완료 |
+| 2단계 | 최소 학습 루프 구현 | 영어 | random weights → 학습된 weights로 전환 확인 | ✅ |
+| 3단계 | BPE를 한국어 corpus로 재학습 | 한국어 | 한국어에 적합한 vocabulary 구축 | 🚧 |
+| 4단계 | 모델도 한국어 데이터로 학습 | 한국어 | 한국어 생성 품질 확보 | - |
+| 5단계 | FastAPI 연결 + 한국어 챗봇 데모 | 한국어 | 최종 과제 완성 | - |
 
 ### curl 테스트 결과 예시
 
@@ -27,6 +30,8 @@ curl -X POST "http://localhost:8000/generate" \
 
 ### 응답 결과 예시
 
+#### 1단계 결과 (학습 전 - Random Weights 상태)
+
 <img src="images/260619_curl_test_result.png" alt="260619_FastAPI curl 테스트 결과">
 
 ```bash
@@ -37,7 +42,45 @@ curl -X POST "http://localhost:8000/generate" \
 }
 ```
 
-- ⚠️ 참고: 현재는 모델이 학습되지 않은 상태(random weights)이며, BPE vocabulary도 매우 제한적인 dummy corpus로 학습된 상태입니다. 따라서 생성 품질은 낮습니다. 학습 루프 적용 후 품질이 개선될 예정입니다.
+> ⚠️ 참고: 현재는 모델이 학습되지 않은 상태(random weights)이며, BPE vocabulary도 매우 제한적인 dummy corpus로 학습된 상태입니다. 따라서 생성 품질은 낮습니다. 학습 루프 적용 후 품질이 개선될 예정입니다.
+
+#### 2단계 결과 (최소 학습 루프 적용 후)
+
+- 최소 학습 루프(50 epoch)를 적용한 후 생성 결과
+
+<img src="images/260625_min_learning_result.png" alt="260625_최소 학습 루프 적용 결과">
+
+```bash
+=== 최소 훈련 루프 시작 ===
+
+Tokenizer Vocabulary size: 137
+Model initialized with vocab_size=137
+Epoch [  1/50] | Loss: 5.0290
+Epoch [ 10/50] | Loss: 0.2869
+Epoch [ 20/50] | Loss: 0.0756
+Epoch [ 30/50] | Loss: 0.0627
+Epoch [ 40/50] | Loss: 0.0664
+Epoch [ 50/50] | Loss: 0.0543
+
+=== 훈련 후 생성 결과 확인 ===
+
+Prompt: hello
+Generated: hello how are you on the cat is on the mat is on the mat is
+
+Prompt: today the weather
+Generated: today the weather is good is good is good is good is good is good is good is
+
+Prompt: i like to
+Generated: i like to play soccer soccer play soccer yesterday is your name is your name is your name
+
+=== 훈련 루프 종료 ===
+```
+
+> **상태**: 15개의 영어 문장으로 50 epoch 학습을 진행한 결과입니다.
+> Loss가 4.91 → 0.06 수준까지 크게 감소했으며, 학습 데이터에 있는 문장 패턴을 어느 정도 따라가는 결과를 보입니다.
+> 다만 데이터가 매우 작아 과적합(반복 현상)이 발생한 상태입니다.
+
+> **비고**: 1단계 대비 문장 구조를 어느 정도 인지하기 시작했으나, 아직 반복(repetition) 현상이 강하게 나타납니다. 데이터 규모를 늘리거나 학습 루프를 개선하면 품질이 더욱 향상될 것으로 예상됩니다.
 
 ## 프로젝트 구조
 
@@ -96,17 +139,6 @@ python test_generator.py # 4. 테스트 방법
    ↓
 [Linear] → Vocab Size (다음 토큰 예측)
 ```
-
-## 모델 개선 사항 진행 현황
-
-**모델 개선 사항 진행 현황**
-| 단계 | 내용 | 언어 | 목표 |
-| --- | --- | --- | --- |
-| 1단계 ✅ | BPE + Transformer 연결 안정화 | 영어 | OOV 에러 없이 동작, generate() 흐름 검증 |
-| 2단계 ✅ | 최소 학습 루프 구현 | 영어 | random weights → 학습된 weights로 전환 확인 |
-| 3단계 🚧 | BPE를 한국어 corpus로 재학습 | 한국어 | 한국어에 적합한 vocabulary 구축 |
-| 4단계 | 모델도 한국어 데이터로 학습 | 한국어 | 한국어 생성 품질 확보 |
-| 5단계 | FastAPI 연결 + 한국어 챗봇 데모 | 한국어 | 최종 과제 완성 |
 
 ## Development History
 
