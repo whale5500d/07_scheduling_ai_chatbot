@@ -177,7 +177,7 @@ if __name__ == "__main__":
     from pathlib import Path
 
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from model.document_loader import load_document
+    from rag_pipeline.document_loader import load_document
     from model.generator import TextGenerator
     from model.graph_extractor import build_graph, extract_relations
 

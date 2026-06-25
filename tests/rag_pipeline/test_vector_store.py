@@ -15,7 +15,7 @@ Test for Step A-4: Storage (src/model/vector_store.py)
 import numpy as np
 import pytest
 
-from model.vector_store import InMemoryVectorStore  # noqa: E402
+from rag_pipeline.vector_store import InMemoryVectorStore  # noqa: E402
 
 
 def make_mock_vectors(n: int, dim: int = 4) -> np.ndarray:

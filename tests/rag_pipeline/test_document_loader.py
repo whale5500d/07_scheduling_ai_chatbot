@@ -11,7 +11,7 @@ Test for Step A-1: Document Loading (src/model/document_loader.py)
 from pathlib import Path
 import pytest
 
-from model.document_loader import load_document  # noqa: E402
+from rag_pipeline.document_loader import load_document  # noqa: E402
 
 
 class TestLoadDocument:

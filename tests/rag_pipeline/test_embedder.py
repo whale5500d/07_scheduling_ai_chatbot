@@ -14,7 +14,7 @@ Test for Step A-3: Embedding (src/model/embedder.py)
 import numpy as np
 import pytest
 
-from model.embedder import TextEmbedder  # noqa: E402
+from rag_pipeline.embedder import TextEmbedder  # noqa: E402
 
 
 def cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:

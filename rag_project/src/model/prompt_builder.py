@@ -56,10 +56,10 @@ if __name__ == "__main__":
     from pathlib import Path
 
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from model.document_loader import load_document
-    from model.chunker import chunk_fixed_size
-    from model.embedder import TextEmbedder
-    from model.vector_store import InMemoryVectorStore
+    from rag_pipeline.document_loader import load_document
+    from rag_pipeline.chunker import chunk_fixed_size
+    from rag_pipeline.embedder import TextEmbedder
+    from rag_pipeline.vector_store import InMemoryVectorStore
     from model.retriever import retrieve_top_k
 
     sample_path = (

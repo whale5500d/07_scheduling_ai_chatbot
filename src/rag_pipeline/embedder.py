@@ -59,8 +59,8 @@ if __name__ == "__main__":
     from pathlib import Path
 
     sys.path.append(str(Path(__file__).resolve().parent.parent))
-    from model.document_loader import load_document
-    from model.chunker import chunk_fixed_size
+    from rag_pipeline.document_loader import load_document
+    from rag_pipeline.chunker import chunk_fixed_size
 
     sample_path = (
         Path(__file__).resolve().parent.parent.parent / "data" / "nimbusflow_manual.md"

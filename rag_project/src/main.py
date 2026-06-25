@@ -19,13 +19,13 @@ from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from model.chunker import chunk_by_section
-from model.document_loader import load_document
-from model.embedder import TextEmbedder
+from rag_pipeline.chunker import chunk_by_section
+from rag_pipeline.document_loader import load_document
+from rag_pipeline.embedder import TextEmbedder
 from model.generator import TextGenerator
 from model.prompt_builder import build_prompt
 from model.retriever import retrieve_top_k
-from model.vector_store import InMemoryVectorStore
+from rag_pipeline.vector_store import InMemoryVectorStore
 
 # 서버 전체에서 공유할 리소스(모델, 저장소)를 담을 컨테이너.
 # 전역 변수를 직접 쓰는 대신 객체 하나에 묶어, 어떤 리소스들이 공유되는지 명확히 한다.

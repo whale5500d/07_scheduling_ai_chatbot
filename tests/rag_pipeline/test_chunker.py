@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from model.chunker import chunk_by_section, chunk_fixed_size  # noqa: E402
-from model.document_loader import load_document  # noqa: E402
+from rag_pipeline.chunker import chunk_by_section, chunk_fixed_size  # noqa: E402
+from rag_pipeline.document_loader import load_document  # noqa: E402
 
 
 class TestChunkFixedSize:
