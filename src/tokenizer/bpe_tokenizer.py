@@ -4,14 +4,6 @@ import re
 class BPETokenizer:
     """
     BPE Tokenizer 구현체
-
-    Known Limitation (2026.06.19 기준):
-        - train() 메서드의 vocabulary 품질이 아직 충분하지 않음.
-          전체 단어가 통째로 토큰으로 남거나, 일관성 없는 서브워드 분해가 발생할 수 있음.
-        - 이로 인해 encode() 결과가 기대보다 짧거나, 의미 있는 subword 단위로 분해되지 않을 수 있음.
-        - 현재는 decode()는 정상 동작하지만, 생성 품질 저하의 주요 원인이 됨.
-        - 개선 방향: merges_needed 계산 방식 재검토 + vocabulary 구축 로직 정교화
-          (RESTROSPECTIVE.md 트러블슈팅 9, 10 참조)
     """
     def __init__(self, vocab_size: int, unk_token: str = "<unk>"):
         """
@@ -31,37 +23,19 @@ class BPETokenizer:
         - corpus: 학습에 사용할 텍스트 리스트
         """
         
-        # TODO: 현재 train()은 BPE의 기본적인 동작은 수행하지만,
-        #       최종 vocabulary의 품질이 아직 만족스럽지 않음.
-        #       특히 token_to_id에 전체 단어(low</w>, hello</w> 등)가 많이 남아 있고,
-        #       일관된 서브워드 단위로 vocabulary가 구성되지 않는 문제가 있음.
-        #       나중에 vocabulary 구축 로직을 더 체계적으로 개선할 필요가 있음.
-        #       (예: 모든 병합 단계에서 등장한 토큰을 기록하거나,
-        #        더 정교한 vocabulary selection 전략 적용)
-        # 1. 초기 word_freq 구성
+        # 1. 초기 word_freq 구성 (단어 -> 문자 단위 + </w>)
         word_freq = {}
         for sentence in corpus:             
             for word in sentence.split(): # 입력된 corpus를 단어 단위로 구분
                 # 각 단어를 문자 단위로 쪼갠 후 </w>를 붙여 초기 word_freq 만들기
                 word_tokens = ' '.join(list(word)) + ' </w>'
                 word_freq[word_tokens] = word_freq.get(word_tokens, 0) + 1
-                
-        # 2. 목표 병합 횟수 계산 (대략적인 추정)
-        # word_freq_size에 도달하기 위해 대략 몇 번 병합해야 하는지 계산
-        # TODO: 현재 merges_needed 계산 방식(len(word_freq) 기반)은
-        #       BPE 학습의 본질과 잘 맞지 않을 수 있음.
-        #       더 나은 방식(예: 고정된 병합 횟수 또는 vocabulary 성장률 기반)으로
-        #       개선하는 것을 고려해야 함.
-        initial_tokens = set()
-        for word in word_freq:
-            initial_tokens.update(word.split())
 
-        # TODO: BPE 학습 로직 개선 필요 (2026.06.19)
-        # 현재 merges_needed를 len(initial_tokens) 기준으로 계산하고 있으나,
-        # 이는 BPE의 본질(정보 이론 기반 압축, MDL 최소화)과 잘 맞지 않을 수 있음.
-        # 또한 최종 vocabulary 구축 방식이 ad-hoc하여 품질이 낮음.
-        # → 향후 고정된 병합 횟수 또는 vocabulary 성장률 기반 제어로 변경 검토 필요.
-        merges_needed = max(0, self.vocab_size - len(initial_tokens))
+        # 2. 병합 횟수 설정
+        # 이전에는 vocab_size - 초기 토큰 수 방식으로 계산했으나,
+        # 안정적인 학습을 위해 고정 offset + 최소값을 사용하는 방식으로 변경
+        merges_needed = self.vocab_size - 100
+        merges_needed = max(50, merges_needed)
 
         # 3. 병합 반복 수행
         # 루프를 돌면서
@@ -83,24 +57,21 @@ class BPETokenizer:
         # 3. 최종 vocabulary 및 ID 매핑 생성
         self.vocab = word_freq
 
+        # 4. token_to_id, id_to_token 생성
         # <unk>는 항상 ID 0으로 고정하여 미리 설정
         self.token_to_id = {self.unk_token: 0}
         self.id_to_token = {0: self.unk_token}
 
-        # 4. 개선된 vocabulary 구축
-        # TODO: 현재 vocabulary 구축 방식은 ad-hoc(임시방편)임.
-        #       word_freq의 현재 상태 + merge_rules에서 토큰을 수집하고 있는데,
-        #       이는 BPE 학습 과정에서 만들어진 모든 유의미한 서브워드를
-        #       체계적으로 수집하는 방법이 아님.
-        #       나중에 더 나은 vocabulary selection 전략을 적용해야 함.
+        # 5. 개선된 vocabulary 구축
+        # TODO: 나중에 더 나은 vocabulary selection 전략을 적용해야 함.
         #       (예: 모든 병합 단계별로 등장한 토큰 기록, frequency 기반 필터링 등)
         all_tokens = set()
 
-        # 5. 현재 word_freq에 있는 모든 서브워드 수집
+        # 6. 현재 word_freq에 있는 모든 서브워드 수집
         for word in word_freq:
             all_tokens.update(word.split())
 
-        # 5. merge_rules에 등장한 모든 토큰도 수집 (더 풍부한 vocabulary를 위해)
+        # 7. merge_rules에 등장한 모든 토큰도 수집 (더 풍부한 vocabulary를 위해)
         for pair in self.merge_rules:
             all_tokens.add(''.join(pair)) # 병합된 형태 추가
 
@@ -157,8 +128,7 @@ class BPETokenizer:
         텍스트를 BPE 방식으로 토큰화하여 token ID 리스트로 반환
 
         Known Limitation:
-            - OOV 토큰을 -1로 처리하고 있음. 이는 모델 입력 시 문제가 될 수 있음.
-            - <unk>, <bos>, <eos> 등 특수 토큰에 대한 명시적 처리가 아직 없음.
+            - <bos>, <eos> 등 특수 토큰에 대한 명시적 처리가 아직 없음.
             - vocabulary 품질이 낮을 경우, 긴 시퀀스가 짧게 압축되는 현상이 발생할 수 있음.
         """
         
