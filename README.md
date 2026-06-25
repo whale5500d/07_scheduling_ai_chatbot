@@ -97,6 +97,17 @@ python test_generator.py # 4. 테스트 방법
 [Linear] → Vocab Size (다음 토큰 예측)
 ```
 
+## 모델 개선 사항 진행 현황
+
+**모델 개선 사항 진행 현황**
+| 단계 | 내용 | 언어 | 목표 |
+| --- | --- | --- | --- |
+| 1단계 ✅ | BPE + Transformer 연결 안정화 | 영어 | OOV 에러 없이 동작, generate() 흐름 검증 |
+| 2단계 ✅ | 최소 학습 루프 구현 | 영어 | random weights → 학습된 weights로 전환 확인 |
+| 3단계 🚧 | BPE를 한국어 corpus로 재학습 | 한국어 | 한국어에 적합한 vocabulary 구축 |
+| 4단계 | 모델도 한국어 데이터로 학습 | 한국어 | 한국어 생성 품질 확보 |
+| 5단계 | FastAPI 연결 + 한국어 챗봇 데모 | 한국어 | 최종 과제 완성 |
+
 ## Development History
 
 | 단계   | 커밋 메시지                             | 커밋 링크                                                                                            | 비고                                        |
