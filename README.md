@@ -82,6 +82,25 @@ Generated: i like to play soccer soccer play soccer yesterday is your name is yo
 
 > **비고**: 1단계 대비 문장 구조를 어느 정도 인지하기 시작했으나, 아직 반복(repetition) 현상이 강하게 나타납니다. 데이터 규모를 늘리거나 학습 루프를 개선하면 품질이 더욱 향상될 것으로 예상됩니다.
 
+#### 3~5단계 결과 (한국어 데이터 적용 및 FastAPI 데모)
+
+- 최소 학습 데이터 283개 한국어 문장으로 변경 결과 (+)
+
+<img src="images/260625_curl_korean_test_result.png" alt="260625_한국어 데이터 학습 결과">
+
+```bash
+# 결과 JSON으로 표시
+{
+  "generated_text": "요즘 투자에 관심이 많아서 관심이 많아서 관련 뉴스를 자주 본다. 뉴스를 자주 본다. 뉴스를 자주 본다. 뉴스를 자주 본다. 뉴스를 자주 본",
+  "prompt": "요즘 투자에"
+}
+```
+
+> **상태**: 생성 품질은 데이터 규모와 BPE Tokenizer의 한계로 인해 아직 만족스럽지 않으나, **BPE + Transformer + FastAPI 전체 파이프라인 연결**은 완료된 상태이다. 5단계의 주요 목표인 데모 동작 확인은 달성했다.
+
+> **비고**: BPE Tokenizer의 `merges_needed` 계산 방식을 기존 방식(`vocab_size - 초기 토큰 수`)에서 `vocab_size - 100` + 최소 병합 횟수 보장 방식으로 변경했다.
+> 이 변경으로 병합 횟수가 더 안정적으로 제어되면서 vocabulary 품질이 개선되었고, 결과적으로 모델 학습 시 Loss가 더 낮게 수렴하는 효과를 얻을 수 있었다.
+
 ## 프로젝트 구조
 
 ```bash
