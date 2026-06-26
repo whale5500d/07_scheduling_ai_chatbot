@@ -87,15 +87,10 @@ def build_graph(relations: list[tuple[str, str, str]]) -> dict:
 
 
 if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-
-    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    from paths import DATA_DIR
     from rag_pipeline.document_loader import load_document
 
-    sample_path = (
-        Path(__file__).resolve().parent.parent.parent / "data" / "daysync_team_records.md"
-    )
+    sample_path = DATA_DIR / "daysync_team_records.md"
     document = load_document(str(sample_path))
 
     # 요약 테이블(섹션 4)만 추출 대상으로 사용한다 (가장 구조화된 부분)

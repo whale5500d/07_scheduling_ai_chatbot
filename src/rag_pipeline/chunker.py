@@ -106,13 +106,10 @@ def chunk_by_section(
 
 
 if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-
-    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    from paths import DATA_DIR
     from rag_pipeline.document_loader import load_document
 
-    sample_path = Path(__file__).resolve().parent.parent.parent / "data" / "nimbusflow_manual.md"
+    sample_path = DATA_DIR / "daysync_manual.md"
     document = load_document(str(sample_path))
 
     print("=" * 60)

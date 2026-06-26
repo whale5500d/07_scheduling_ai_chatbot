@@ -52,19 +52,14 @@ def build_prompt(question: str, retrieved_chunks: list[tuple[str, float]]) -> st
 
 
 if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-
-    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    from paths import DATA_DIR
     from rag_pipeline.document_loader import load_document
     from rag_pipeline.chunker import chunk_fixed_size
     from rag_pipeline.embedder import TextEmbedder
     from rag_pipeline.vector_store import InMemoryVectorStore
     from rag_pipeline.retriever import retrieve_top_k
 
-    sample_path = (
-        Path(__file__).resolve().parent.parent.parent / "data" / "daysync_manual.md"
-    )
+    sample_path = DATA_DIR / "daysync_manual.md"
     document = load_document(str(sample_path))
     chunks = chunk_fixed_size(document, chunk_size=300, chunk_overlap=50)
 

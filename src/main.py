@@ -13,7 +13,7 @@ HTTP로 호출 가능한 REST API로 노출한다.
 """
 
 from contextlib import asynccontextmanager
-from pathlib import Path
+from paths import DATA_DIR
 
 from fastapi import FastAPI
 from fastapi.responses import StreamingResponse
@@ -39,7 +39,7 @@ async def lifespan(app: FastAPI):
     그리고 Generation에 사용할 모델까지 미리 로딩해 둔다.
     서버 종료 시 별도로 정리할 리소스는 없다.
     """
-    data_path = Path(__file__).resolve().parent.parent / "data" / "daysync_manual.md"
+    data_path = DATA_DIR / "daysync_manual.md"
     document = load_document(str(data_path))
     chunks = chunk_by_section(document, chunk_size=300, chunk_overlap=50)
 

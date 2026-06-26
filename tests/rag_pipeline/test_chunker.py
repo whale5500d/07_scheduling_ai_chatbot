@@ -9,7 +9,7 @@ Test for Step A-2: Chunking (src/rag_pipeline/chunker.py)
 5. 실제 데이터 통합 검증: daysync_manual.md가 정상적으로 분할되는가
 """
 
-from pathlib import Path
+from paths import DATA_DIR
 
 import pytest
 
@@ -72,9 +72,7 @@ class TestChunkFixedSize:
 
     def test_chunk_real_daysync_manual(self):
         """실제 데이터 통합 검증: daysync_manual.md가 정상적으로 분할되고, 핵심 정보가 보존되는지 확인."""
-        real_data_path = (
-            Path(__file__).resolve().parent.parent / "data" / "daysync_manual.md"
-        )
+        real_data_path = DATA_DIR / "daysync_manual.md"
         document = load_document(str(real_data_path))
 
         chunks = chunk_fixed_size(document, chunk_size=300, chunk_overlap=50)
@@ -145,9 +143,7 @@ class TestChunkBySection:
         서로 다른 chunk에 분리되어 있어야 한다 — fixed-size chunking에서 섞였던 문제가
         section-based chunking에서는 해결되었는지 확인한다.
         """
-        real_data_path = (
-            Path(__file__).resolve().parent.parent / "data" / "daysync_manual.md"
-        )
+        real_data_path = DATA_DIR / "daysync_manual.md"
         document = load_document(str(real_data_path))
 
         chunks = chunk_by_section(document, chunk_size=300, chunk_overlap=50)

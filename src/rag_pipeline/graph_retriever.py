@@ -174,17 +174,12 @@ def build_graph_prompt(question: str, relation_context: str) -> str:
 
 
 if __name__ == "__main__":
-    import sys
-    from pathlib import Path
-
-    sys.path.append(str(Path(__file__).resolve().parent.parent))
+    from paths import DATA_DIR
     from rag_pipeline.document_loader import load_document
     from rag_pipeline.generator import TextGenerator
     from rag_pipeline.graph_extractor import build_graph, extract_relations
 
-    sample_path = (
-        Path(__file__).resolve().parent.parent.parent / "data" / "daysync_team_records.md"
-    )
+    sample_path = DATA_DIR / "daysync_team_records.md"
     document = load_document(str(sample_path))
     summary_section = document.split("## 4. Summary Table")[1]
 

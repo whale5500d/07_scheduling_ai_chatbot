@@ -8,7 +8,7 @@ Test for Step A-1: Document Loading (src/rag_pipeline/document_loader.py)
 4. 내용 검증: 로드된 텍스트가 실제 파일 내용과 정확히 일치하는가
 """
 
-from pathlib import Path
+from paths import DATA_DIR
 import pytest
 
 from rag_pipeline.document_loader import load_document  # noqa: E402
@@ -55,9 +55,7 @@ class TestLoadDocument:
 
     def test_load_real_daysync_manual(self):
         """실제 프로젝트 데이터 파일(daysync_manual.md)이 정상적으로 로드되는지 확인."""
-        real_data_path = (
-            Path(__file__).resolve().parent.parent / "data" / "daysync_manual.md"
-        )
+        real_data_path = DATA_DIR / "daysync_manual.md"
 
         result = load_document(str(real_data_path))
 

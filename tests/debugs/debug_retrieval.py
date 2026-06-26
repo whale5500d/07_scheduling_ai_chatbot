@@ -7,15 +7,14 @@ Section-based chunking을 동일한 절차로 각각 실행하여, 두 전략의
 "9221" chunk 순위를 비교한다.
 """
 
-from pathlib import Path
-
+from paths import DATA_DIR
 from rag_pipeline.document_loader import load_document
 from rag_pipeline.chunker import chunk_by_section, chunk_fixed_size
 from rag_pipeline.embedder import TextEmbedder
 from rag_pipeline.vector_store import InMemoryVectorStore
 from rag_pipeline.retriever import cosine_similarity
 
-DATA_PATH = Path(__file__).resolve().parent.parent / "data" / "daysync_manual.md"
+DATA_PATH = DATA_DIR / "daysync_manual.md"
 document = load_document(str(DATA_PATH))
 
 # (질문, 정답을 찾기 위한 키워드) 쌍으로 직접 지정 — 자동 추출 대신 명확성을 우선한다
