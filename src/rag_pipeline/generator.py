@@ -337,7 +337,7 @@ if __name__ == "__main__":
     store = InMemoryVectorStore()
     store.add(chunks, vectors)
 
-    question = "What is the internal codename of NimbusFlow during development?"
+    question = "DaySync의 내부 코드네임은 무엇인가?"
     query_vector = embedder.encode([question])[0]
     retrieved = retrieve_top_k(query_vector, store, k=3)
 
