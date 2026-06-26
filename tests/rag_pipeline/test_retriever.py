@@ -15,8 +15,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from model.retriever import cosine_similarity, retrieve_top_k  # noqa: E402
-from model.vector_store import InMemoryVectorStore  # noqa: E402
+from rag_pipeline.retriever import cosine_similarity, retrieve_top_k  # noqa: E402
+from rag_pipeline.vector_store import InMemoryVectorStore  # noqa: E402
 
 
 class TestCosineSimilarity:

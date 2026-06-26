@@ -60,7 +60,7 @@ if __name__ == "__main__":
     from rag_pipeline.chunker import chunk_fixed_size
     from rag_pipeline.embedder import TextEmbedder
     from rag_pipeline.vector_store import InMemoryVectorStore
-    from model.retriever import retrieve_top_k
+    from rag_pipeline.retriever import retrieve_top_k
 
     sample_path = (
         Path(__file__).resolve().parent.parent.parent / "data" / "nimbusflow_manual.md"

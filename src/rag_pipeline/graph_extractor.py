@@ -18,7 +18,7 @@ Step C-4: Graph RAG — Entity/Relation Extraction
 
 import re
 
-from model.generator import TextGenerator
+from rag_pipeline.generator import TextGenerator
 
 RELATION_PATTERN = re.compile(r"RELATION:\s*(.+?)\s*\|\s*(.+?)\s*\|\s*(.+?)\s*$", re.MULTILINE)
 

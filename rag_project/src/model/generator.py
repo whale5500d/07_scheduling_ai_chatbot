@@ -170,7 +170,7 @@ if __name__ == "__main__":
     from rag_pipeline.chunker import chunk_by_section
     from rag_pipeline.embedder import TextEmbedder
     from rag_pipeline.vector_store import InMemoryVectorStore
-    from model.retriever import retrieve_top_k
+    from rag_pipeline.retriever import retrieve_top_k
     from model.prompt_builder import build_prompt
 
     # Step A + Step B 앞부분 재구성

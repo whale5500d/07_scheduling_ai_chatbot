@@ -178,8 +178,8 @@ if __name__ == "__main__":
 
     sys.path.append(str(Path(__file__).resolve().parent.parent))
     from rag_pipeline.document_loader import load_document
-    from model.generator import TextGenerator
-    from model.graph_extractor import build_graph, extract_relations
+    from rag_pipeline.generator import TextGenerator
+    from rag_pipeline.graph_extractor import build_graph, extract_relations
 
     sample_path = (
         Path(__file__).resolve().parent.parent.parent / "data" / "nimbusflow_team_incidents.md"

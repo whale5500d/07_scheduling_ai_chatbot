@@ -24,7 +24,7 @@ from rag_pipeline.document_loader import load_document
 from rag_pipeline.embedder import TextEmbedder
 from model.generator import TextGenerator
 from model.prompt_builder import build_prompt
-from model.retriever import retrieve_top_k
+from rag_pipeline.retriever import retrieve_top_k
 from rag_pipeline.vector_store import InMemoryVectorStore
 
 # 서버 전체에서 공유할 리소스(모델, 저장소)를 담을 컨테이너.
