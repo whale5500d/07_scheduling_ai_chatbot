@@ -5,30 +5,23 @@
 - ✅ **단계 1**: FastAPI 기본 구조 + Dummy Generator 완료
 - ✅ **단계 2**: 반복 호출 방식의 간이 생성기 완료 (규칙 기반)
 - ✅ **단계 3**: PyTorch의 기본 모듈만 사용한 실제 모델 적용 완료
-  - 고수준 완성형 모듈(`nn.Transformer`, `nn.MultiHeadAttention` 등) 사용하지 않기
-  - 기본 모듈(`nn.Linear`, `nn.Dropout`, `softmax` 등)만 사용하기
 - ✅ **단계 4**: BPE + 모델을 한국어 데이터로 학습, Instruction Tuning 적용
-- ✅ **단계 5**: 반복 생성 문제 해결(EOS 토큰), RAG_Project와 통합
+- ✅ **단계 5**: RAG_Project와 통합, 반복 생성 문제 해결(EOS 토큰)
 
 > **참고**: 아래 "현재 진행 상황 및 테스트 결과", "프로젝트 구조", "실행 방법" 섹션은
-> 2026.06.19~06.25 시점, RAG_Project와 통합되기 전 단계의 기록을 그대로 보존한 것이다.
-> 이 시점의 `main.py`/`schemas.py`(Transformer 단독 FastAPI 서버, `/generate` 엔드포인트)는
-> 이후 RAG_Project와 통합하는 과정에서 삭제되었다 — RAG_Project의 `main.py`가 모델
-> 로딩·생성 호출·헬스체크를 동일하게 수행하여 중복으로 판단했기 때문이다(트러블슈팅
-> 참고). 따라서 아래 `uvicorn main:app`, `curl .../generate` 명령어는 더 이상 그대로
-> 재현되지 않는다. 통합 이후의 실제 실행 방법은 맨 아래 "단계 4 이후 진행 상황" 섹션을
-> 참고할 것.
+> 2026.06.19~06.25 시점, RAG_Project와 통합되기 전 단계의 내용
+> 📎 이 챗봇을 RAG_Project와 통합한 이후 과정은 [RAG_INTEGRATION.md](./RAG_INTEGRATION.md)를 참고
 
-## 현재 진행 상황 및 테스트 결과 (2026.06.19 기준)
+## 현재 진행 상황 및 테스트 결과
 
 **모델 개선 사항 진행 현황**
 | 단계 | 내용 | 언어 | 목표 | 상태 |
 | --- | --- | --- | --- | --- |
-| 1단계 | BPE + Transformer 연결 안정화 | 영어 | OOV 에러 없이 동작, generate() 흐름 검증 | ✅ 완료 |
+| 1단계 | BPE + Transformer 연결 안정화 | 영어 | OOV 에러 없이 동작, generate() 흐름 검증 | ✅ |
 | 2단계 | 최소 학습 루프 구현 | 영어 | random weights → 학습된 weights로 전환 확인 | ✅ |
-| 3단계 | BPE를 한국어 corpus로 재학습 | 한국어 | 한국어에 적합한 vocabulary 구축 | 🚧 |
-| 4단계 | 모델도 한국어 데이터로 학습 | 한국어 | 한국어 생성 품질 확보 | - |
-| 5단계 | FastAPI 연결 + 한국어 챗봇 데모 | 한국어 | 최종 과제 완성 | - |
+| 3단계 | BPE를 한국어 corpus로 재학습 | 한국어 | 한국어에 적합한 vocabulary 구축 | ✅ |
+| 4단계 | 모델도 한국어 데이터로 학습 | 한국어 | 한국어 생성 품질 확보 | ✅ |
+| 5단계 | FastAPI 연결 + 한국어 챗봇 데모 | 한국어 | 최종 과제 완성 | ✅ |
 
 ### curl 테스트 결과 예시
 
@@ -90,7 +83,7 @@ Generated: i like to play soccer soccer play soccer yesterday is your name is yo
 > Loss가 4.91 → 0.06 수준까지 크게 감소했으며, 학습 데이터에 있는 문장 패턴을 어느 정도 따라가는 결과를 보입니다.
 > 다만 데이터가 매우 작아 과적합(반복 현상)이 발생한 상태입니다.
 
-> **비고**: 1단계 대비 문장 구조를 어느 정도 인지하기 시작했으나, 아직 반복(repetition) 현상이 강하게 나타납니다. 데이터 규모를 늘리거나 학습 루프를 개선하면 품질이 더욱 향상될 것으로 예상됩니다.
+> **비고**: 1단계 대비 문장 구조를 어느 정도 인지하기 시작했으나, 아직 반복(repetition) 현상이 강하게 나타납니다. EOS 토큰을 활용해 반복 생성 문제를 해결이 필요합니다.
 
 #### 3~5단계 결과 (한국어 데이터 적용 및 FastAPI 데모)
 
@@ -145,15 +138,16 @@ python test_generator.py # 4. 테스트 방법
 
 ## Transformer 구현 순서
 
-| 단계 | 내용                                   | 목표                                          | 예상 소요 |
-| ---- | -------------------------------------- | --------------------------------------------- | --------- |
+**Transformer 구현 순서**
+| 단계 | 내용 | 목표 | 예상 소요 |
+| --- | --- | --- | --- |
 | ✅ 1 | Scaled Dot-Product Attention 직접 구현 | 가장 핵심적인 Attention 메커니즘 이해 및 구현 | 가장 중요 |
-| ✅ 2 | Multi-Head Attention 구현              | 여러 Head를 다루는 방식 이해                  | 중요      |
-| ✅ 3 | DecoderLayer 구현                      | Attention + FFN + LayerNorm + Residual 연결   | 중        |
-| ✅ 4 | TransformerDecoder 구현                | 여러 개의 DecoderLayer를 쌓기                 | 중        |
-| ✅ 5 | 전체 모델 조립 + Positional Encoding   | Embedding + Positional Encoding + 출력층 연결 | 중        |
-| ✅ 6 | 학습 루프 + generate 함수 연결         | 모델 학습 및 텍스트 생성 동작 확인            | -         |
-| ✅ 7 | FastAPI 연결                           | 기존 웹 구조와 연결                           | -         |
+| ✅ 2 | Multi-Head Attention 구현 | 여러 Head를 다루는 방식 이해 | 중요 |
+| ✅ 3 | DecoderLayer 구현 | Attention + FFN + LayerNorm + Residual 연결 | 중 |
+| ✅ 4 | TransformerDecoder 구현 | 여러 개의 DecoderLayer를 쌓기 | 중 |
+| ✅ 5 | 전체 모델 조립 + Positional Encoding | Embedding + Positional Encoding + 출력층 연결 | 중 |
+| ✅ 6 | 학습 루프 + generate 함수 연결 | 모델 학습 및 텍스트 생성 동작 확인 | - |
+| ✅ 7 | FastAPI 연결 | 기존 웹 구조와 연결 | - |
 
 ## 전체 모델의 흐름
 
@@ -171,47 +165,11 @@ python test_generator.py # 4. 테스트 방법
 
 ## Development History
 
-| 단계   | 커밋 메시지                             | 커밋 링크                                                                                            | 비고                                        |
-| ------ | --------------------------------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| 단계 1 | chore: Chat Bot - Web Dummy 생성        | [6c56644](https://github.com/whale2200d/05_Chat_Bot/commit/6c56644d14e089ea32e00a83692f72f571fb4d94) | FastAPI 기본 구조 + Dummy Generator 구현    |
+**Development History**
+| 단계 | 커밋 메시지 | 커밋 링크 | 비고 |
+| --- | --- | --- | --- |
+| 단계 1 | chore: Chat Bot - Web Dummy 생성 | [6c56644](https://github.com/whale2200d/05_Chat_Bot/commit/6c56644d14e089ea32e00a83692f72f571fb4d94) | FastAPI 기본 구조 + Dummy Generator 구현 |
 | 단계 2 | feat: 반복 호출 방식의 간이 생성기 완료 | [d29e892](https://github.com/whale2200d/05_Chat_Bot/commit/d29e892f2d172991a4ca06ad5ea484eb43c0c3c4) | 반복 생성 로직 + 간단한 반복 방지 기능 추가 |
 
 > **현재 상태 (2026.06.19 기준, 보존된 기록)**: 단계 2 완료.
 > 총 2개의 주요 커밋으로 구성되어 있으며, 단계 3에서 PyTorch 모델을 적용할 예정입니다.
-
----
-
-### RAG_Project와의 통합
-
-- 별도로 진행해온 RAG_Project(Gemma 4 E2B-it 기반)와 이 커스텀 Transformer를 하나의 패키지로 통합했다.
-- 패키지명 충돌(`model`) 해결, 모델 본체 전체를 `custom_transformer/` 패키지로 재배치, `TextGenerator`에 `model_name` 파라미터를 추가해 Gemma와 커스텀 Transformer를 갈아끼울 수 있도록 설계했다.
-- RAG_Project의 데이터·prompt 도메인을 커스텀 Transformer의 학습 도메인("일정 묻기")과 언어/도메인을 일치시키기 위해 NimbusFlow → DaySync로 전환했다.
-- 자세한 과정은 트러블슈팅 문서(`docs/RESTROSPECTIVE.md`) 참고.
-
-### 현재 프로젝트 구조 (통합 이후)
-
-```bash
-src/
-├── main.py                      # RAG_Project FastAPI 앱 (/query, /query/stream)
-├── paths.py                     # 프로젝트 전역 경로 중앙화
-├── custom_transformer/          # 이 챗봇 프로젝트의 현재 위치
-│   ├── transformer_model.py
-│   ├── model/                   # decoder_layer, attention 등 구성 요소
-│   ├── tokenizer/
-│   └── scripts/                 # train.py, raw_data/, trained_model/
-└── rag_pipeline/                 # RAG_Project (retriever, generator 등)
-```
-
-### 현재 실행 방법
-
-```bash
-# 모델 학습 (instruction tuning)
-python custom_transformer/scripts/train.py
-
-# RAG 파이프라인과 함께 FastAPI로 실행
-uvicorn main:app --reload --port 8000
-# (TextGenerator(model_name="custom_transformer")로 설정 시
-#  /query, /query/stream에서 이 모델이 사용됨)
-```
-
-> 옛 단독 데모(`/generate` 엔드포인트, `python test_generator.py`)는 더 이상 존재하지 않는다.
