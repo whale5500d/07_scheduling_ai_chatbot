@@ -144,12 +144,6 @@ Transformer를 전환할 수 있다.
 - `src/main.py`를 책임 단위(`RagPipeline` 클래스 등)로 재구성하는 작업은
   설계만 논의되었고 아직 코드에 반영되지 않았다.
 
-## 관련 트러블슈팅
+## 관련 회고록
 
-자세한 의사결정 과정과 시행착오는 `docs/RESTROSPECTIVE.md`의 다음
-트러블슈팅 항목을 참고할 것.
-
-- 패키지 통합 및 단계별 이동 (폴더 구조 재설계)
-- Gemma/커스텀 Transformer 갈아끼우기 설계 및 동작 검증
-- RAG_Project 도메인 전환 (NimbusFlow → DaySync)
-- 경로 계산 중앙화 (`paths.py` 도입)
+- [[바로가기](./retrospective/retrospective_integration.md)]

@@ -4,16 +4,6 @@ tests/ 전체 공용 conftest.py — torch/transformers/sentence_transformers가
 src/rag_pipeline/embedder.py, src/rag_pipeline/generator.py, src/main.py를
 import할 수 있도록 하기 위한 "import 통과용" 가짜(stub) 모듈 주입.
 
-[왜 tests/ 루트로 옮겼는가]
-원래 이 stub은 tests/langchain_pipeline/conftest.py에만 있었다(llm.py 테스트만
-필요로 했기 때문). 9단계에서 tests/test_main.py(루트)를 추가하면서, main.py가
-import 시점에 rag_pipeline.embedder(→ sentence_transformers) /
-rag_pipeline.generator(→ torch, transformers)도 함께 끌고 온다는 점이 드러났다
-(직접 실행해서 ModuleNotFoundError로 확인함). pytest의 conftest.py는 같은 폴더와
-그 하위 폴더에만 적용되므로, tests/langchain_pipeline/에 있던 것을 tests/ 루트로
-올려야 tests/test_main.py에도 적용된다. tests/langchain_pipeline/ 하위 테스트들도
-그대로 상속받아 적용되므로 동작 변화는 없다.
-
 [이 stub이 하는 일 / 하지 않는 일 — 반드시 구분할 것]
 - 하는 일: `import torch`, `import torch.nn as nn`, `from transformers import
   AutoModelForCausalLM, AutoProcessor, TextIteratorStreamer, pipeline`,
