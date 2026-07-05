@@ -1,33 +1,35 @@
 """
-Test for langgraph_pipeline: graph.py
+Test for langgraph_pipeline: graph.py (Agent)
 
-검증 항목:
-1. build_rag_graph(): invoke() 결과가 RAGState 형태(question/retrieved/answer 키 보유)인가
-2. build_rag_graph(): retrieved에 결과가 있을 때 generate 노드로 라우팅되어 answer가 채워지는가
-3. build_rag_graph(): 빈 store일 때 no_results 노드로 라우팅되어 NO_RESULTS_ANSWER가 반환되는가
-   (LCEL chain.py가 ValueError를 던졌던 경로가, LangGraph에서는 폴백 답변으로 처리된다)
-4. build_rag_graph(): k가 retrieved 개수를 제한하는가
-5. stream_rag_answer(): 토큰 리스트가 합쳐지면 전체 답변이 되는가
-6. stream_rag_answer(): 빈 store일 때 NO_RESULTS_ANSWER를 단일 청크로 yield하는가
-7. stream_rag_answer(): retrieve 노드 완료 후 llm.stream()을 쓰므로, FakeStreamingListLLM의
-   토큰 단위 분할이 그대로 나오는가
+기존 고정 RAG 파이프라인 테스트에서 Agent 동작 테스트로 교체한다.
 
-[가짜 컴포넌트 선택 이유 — test_chain.py와 동일한 패턴]
-- FakeListLLM: invoke() 경로 검증
-- FakeStreamingListLLM: stream() 경로 검증
-- RunnableLambda(lambda p: p): echo LLM — prompt 내용 검증
-- DeterministicFakeEmbedding: 재현 가능한 임베딩
+핵심 검증:
+1. 도구 호출 없는 응답 → tools 노드를 거치지 않고 END로 종료
+2. 도구 호출 1회 → ToolNode 실행 후 다시 call_model로 돌아와 최종 답변
+3. invoke() 결과가 AgentState 형태(messages 키)인가
+4. HumanMessage가 최종 히스토리에 보존되는가
+5. 도구를 두 번 호출하는 루프 시나리오
+6. run_rag_agent() → 문자열 반환
+7. run_rag_agent() → content가 list인 경우도 문자열로 변환 (Gemini multi-part 대응)
+
+[테스트 전략]
+실제 Gemini API를 호출하지 않고 GenericFakeChatModel로 시나리오를 재현한다.
+build_rag_graph()는 내부에서 get_agent_llm()을 호출해 Gemini LLM을 생성하므로,
+테스트에서는 build_rag_graph() 대신 make_call_model_node()를 직접 주입한다.
 """
 import pytest
 from langchain_core.documents import Document
 from langchain_core.embeddings import DeterministicFakeEmbedding
-from langchain_core.language_models.fake import FakeListLLM, FakeStreamingListLLM
-from langchain_core.runnables import RunnableLambda
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.vectorstores import InMemoryVectorStore
+from langgraph.graph import START, StateGraph
+from langgraph.prebuilt import ToolNode, tools_condition
 
 from langchain_pipeline.vector_store import build_vector_store
-from langgraph_pipeline.graph import build_rag_graph, stream_rag_answer
-from langgraph_pipeline.nodes import NO_RESULTS_ANSWER
+from langgraph_pipeline.graph import run_rag_agent
+from langgraph_pipeline.state import AgentState
+from langgraph_pipeline.tools import get_all_tools, make_call_model_node
 
 
 @pytest.fixture
@@ -39,8 +41,7 @@ def fake_embedding():
 def sample_documents():
     return [
         Document(page_content="DaySync의 기본 API 포트는 9221입니다.", metadata={"idx": 0}),
-        Document(page_content="일정 충돌 에러 코드는 SC-114입니다.", metadata={"idx": 1}),
-        Document(page_content="DaySync의 내부 코드네임은 프로젝트 새벽별입니다.", metadata={"idx": 2}),
+        Document(page_content="선호도 점수가 0.65 이상이면 선호 활동입니다.", metadata={"idx": 1}),
     ]
 
 
@@ -49,139 +50,130 @@ def store(sample_documents, fake_embedding):
     return build_vector_store(sample_documents, fake_embedding)
 
 
-@pytest.fixture
-def empty_store(fake_embedding):
-    return InMemoryVectorStore(embedding=fake_embedding)
+def _build_test_graph(fake_llm, store):
+    """테스트용: GenericFakeChatModel을 직접 주입한 Agent 그래프를 빌드한다.
+
+    GenericFakeChatModel은 bind_tools()를 지원하지 않으므로
+    fake_llm을 make_call_model_node()에 직접 전달한다.
+    ToolNode는 AIMessage.tool_calls[].name으로 도구를 dispatch하므로,
+    도구 이름이 get_all_tools() 목록과 일치하면 정상 동작한다.
+    """
+    tools = get_all_tools(store, k=2)
+    tool_node = ToolNode(tools)
+
+    graph = StateGraph(AgentState)
+    graph.add_node("call_model", make_call_model_node(fake_llm))
+    graph.add_node("tools", tool_node)
+    graph.add_edge(START, "call_model")
+    graph.add_conditional_edges("call_model", tools_condition)
+    graph.add_edge("tools", "call_model")
+    return graph.compile()
 
 
-@pytest.fixture
-def initial_state():
-    return {"question": "DaySync API 포트가 뭐야?", "retrieved": [], "answer": ""}
+class TestAgentGraph:
+    def test_no_tool_call_ends_immediately(self, store):
+        """도구 호출 없는 AIMessage → tools 노드를 거치지 않고 END로 종료."""
+        fake_llm = GenericFakeChatModel(
+            messages=iter([AIMessage(content="바로 답변합니다.")])
+        )
+        graph = _build_test_graph(fake_llm, store)
+        result = graph.invoke({"messages": [HumanMessage(content="테스트 질문")]})
+
+        last = result["messages"][-1]
+        assert isinstance(last, AIMessage)
+        assert last.content == "바로 답변합니다."
+
+    def test_tool_call_routes_to_tools_node(self, store):
+        """도구 호출 AIMessage → ToolNode 실행 후 최종 답변."""
+        tool_call_msg = AIMessage(
+            content="",
+            tool_calls=[{
+                "id": "call_001",
+                "name": "calc_preference_score",
+                "args": {"score": 0.75},
+            }],
+        )
+        final_msg = AIMessage(content="선호 활동입니다.")
+
+        fake_llm = GenericFakeChatModel(messages=iter([tool_call_msg, final_msg]))
+        graph = _build_test_graph(fake_llm, store)
+        result = graph.invoke({"messages": [HumanMessage(content="0.75점은?")]})
+
+        messages = result["messages"]
+        tool_messages = [m for m in messages if isinstance(m, ToolMessage)]
+        assert len(tool_messages) == 1
+        assert "선호 활동" in tool_messages[0].content
+
+        last = messages[-1]
+        assert isinstance(last, AIMessage)
+        assert last.content == "선호 활동입니다."
+
+    def test_result_has_messages_key(self, store):
+        """invoke() 결과가 AgentState 형태(messages 키)인가."""
+        fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content="답변")]))
+        graph = _build_test_graph(fake_llm, store)
+        result = graph.invoke({"messages": [HumanMessage(content="질문")]})
+
+        assert "messages" in result
+        assert isinstance(result["messages"], list)
+
+    def test_human_message_preserved_in_history(self, store):
+        """HumanMessage가 최종 messages 히스토리에 보존되는가."""
+        fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content="답변")]))
+        graph = _build_test_graph(fake_llm, store)
+        question = "DaySync API 포트가 뭐야?"
+        result = graph.invoke({"messages": [HumanMessage(content=question)]})
+
+        human_messages = [m for m in result["messages"] if isinstance(m, HumanMessage)]
+        assert len(human_messages) == 1
+        assert human_messages[0].content == question
+
+    def test_multiple_tool_calls_loop(self, store):
+        """도구를 두 번 호출하는 시나리오 — 루프가 올바르게 반복되는가."""
+        tool_call_1 = AIMessage(
+            content="",
+            tool_calls=[{"id": "c1", "name": "calc_preference_score", "args": {"score": 0.8}}],
+        )
+        tool_call_2 = AIMessage(
+            content="",
+            tool_calls=[{"id": "c2", "name": "calc_preference_score", "args": {"score": 0.3}}],
+        )
+        final_msg = AIMessage(content="두 점수 모두 분석 완료.")
+
+        fake_llm = GenericFakeChatModel(messages=iter([tool_call_1, tool_call_2, final_msg]))
+        graph = _build_test_graph(fake_llm, store)
+        result = graph.invoke({"messages": [HumanMessage(content="두 점수 비교해줘")]})
+
+        tool_messages = [m for m in result["messages"] if isinstance(m, ToolMessage)]
+        assert len(tool_messages) == 2
+        assert result["messages"][-1].content == "두 점수 모두 분석 완료."
 
 
-class TestBuildRagGraph:
-    def test_invoke_result_has_rag_state_keys(self, store, initial_state):
-        llm = FakeListLLM(responses=["가짜 답변입니다."])
-        graph = build_rag_graph(store, llm, k=2)
+class TestRunRagAgent:
+    def test_returns_string(self, store):
+        """run_rag_agent()는 문자열을 반환해야 한다."""
+        from unittest.mock import patch
 
-        result = graph.invoke(initial_state)
+        fake_llm = GenericFakeChatModel(messages=iter([AIMessage(content="문자열 답변")]))
+        fake_graph = _build_test_graph(fake_llm, store)
 
-        assert "question" in result
-        assert "retrieved" in result
-        assert "answer" in result
+        with patch("langgraph_pipeline.graph.build_rag_graph", return_value=fake_graph):
+            result = run_rag_agent("테스트", store)
 
-    def test_answer_is_filled_when_docs_retrieved(self, store, initial_state):
-        llm = FakeListLLM(responses=["가짜 답변입니다."])
-        graph = build_rag_graph(store, llm, k=2)
+        assert isinstance(result, str)
+        assert result == "문자열 답변"
 
-        result = graph.invoke(initial_state)
+    def test_list_content_is_joined_to_string(self, store):
+        """AIMessage.content가 list[dict]인 경우도 문자열로 변환 (Gemini multi-part 대응)."""
+        from unittest.mock import patch
 
-        assert result["answer"] == "가짜 답변입니다."
+        list_content_msg = AIMessage(
+            content=[{"type": "text", "text": "파트1"}, {"type": "text", "text": "파트2"}]
+        )
+        fake_llm = GenericFakeChatModel(messages=iter([list_content_msg]))
+        fake_graph = _build_test_graph(fake_llm, store)
 
-    def test_retrieved_contains_document_score_tuples(self, store, initial_state):
-        llm = FakeListLLM(responses=["가짜 답변입니다."])
-        graph = build_rag_graph(store, llm, k=2)
+        with patch("langgraph_pipeline.graph.build_rag_graph", return_value=fake_graph):
+            result = run_rag_agent("테스트", store)
 
-        result = graph.invoke(initial_state)
-
-        for doc, score in result["retrieved"]:
-            assert isinstance(doc, Document)
-            assert isinstance(score, float)
-
-    def test_k_limits_retrieved_count(self, store, initial_state):
-        llm = FakeListLLM(responses=["가짜 답변입니다."])
-        graph = build_rag_graph(store, llm, k=2)
-
-        result = graph.invoke(initial_state)
-
-        assert len(result["retrieved"]) == 2
-
-    def test_empty_store_routes_to_no_results_instead_of_raising(self, empty_store, initial_state):
-        """
-        LCEL build_rag_chain()은 빈 store에서 format_docs()의 ValueError를 전파했다.
-        LangGraph 버전은 no_results 노드로 분기해 폴백 메시지를 반환한다.
-        이것이 StateGraph 마이그레이션의 핵심 개선 사항 중 하나다.
-        """
-        llm = FakeListLLM(responses=["가짜 답변입니다."])
-        graph = build_rag_graph(empty_store, llm, k=3)
-
-        result = graph.invoke(initial_state)
-
-        assert result["answer"] == NO_RESULTS_ANSWER
-        assert result["retrieved"] == []
-
-    def test_empty_store_does_not_call_llm(self, empty_store, initial_state):
-        """빈 store에서 no_results 분기가 올바르게 동작하면 llm.invoke()는 호출되지 않는다."""
-        call_count = {"n": 0}
-
-        def counting_llm(prompt):
-            call_count["n"] += 1
-            return "이 응답은 나오면 안 됩니다."
-
-        graph = build_rag_graph(empty_store, RunnableLambda(counting_llm), k=3)
-        graph.invoke(initial_state)
-
-        assert call_count["n"] == 0
-
-    def test_prompt_passed_to_llm_contains_question_and_context(self, store, initial_state):
-        """echo LLM으로 그래프가 generate 노드에 조립해 넘기는 prompt 본문을 직접 검증한다."""
-        echo_llm = RunnableLambda(lambda p: p)
-        graph = build_rag_graph(store, echo_llm, k=2)
-
-        result = graph.invoke(initial_state)
-        prompt_text = result["answer"]
-
-        assert f"질문: {initial_state['question']}" in prompt_text
-        assert "[문서 1]" in prompt_text
-        assert "Human:" not in prompt_text
-
-    def test_question_is_preserved_in_result(self, store, initial_state):
-        llm = FakeListLLM(responses=["가짜 답변입니다."])
-        graph = build_rag_graph(store, llm, k=1)
-
-        result = graph.invoke(initial_state)
-
-        assert result["question"] == initial_state["question"]
-
-
-class TestStreamRagAnswer:
-    def test_tokens_join_to_full_answer(self, store):
-        full_answer = "스트리밍 테스트 답변입니다"
-        llm = FakeStreamingListLLM(responses=[full_answer])
-
-        tokens = list(stream_rag_answer("DaySync API 포트가 뭐야?", store, llm, k=2))
-
-        assert "".join(tokens) == full_answer
-
-    def test_yields_multiple_chunks(self, store):
-        """FakeStreamingListLLM은 응답을 글자 단위로 yield하므로 len > 1이어야 한다."""
-        llm = FakeStreamingListLLM(responses=["스트리밍 답변"])
-
-        tokens = list(stream_rag_answer("DaySync API 포트가 뭐야?", store, llm, k=2))
-
-        assert len(tokens) > 1
-
-    def test_empty_store_yields_no_results_answer(self, empty_store):
-        llm = FakeListLLM(responses=["이 응답은 나오면 안 됩니다."])
-
-        tokens = list(stream_rag_answer("아무 질문", empty_store, llm, k=3))
-
-        assert tokens == [NO_RESULTS_ANSWER]
-
-    def test_empty_store_does_not_call_llm_stream(self, empty_store):
-        call_count = {"n": 0}
-
-        def counting_stream(prompt):
-            call_count["n"] += 1
-            yield "이 토큰은 나오면 안 됩니다."
-
-        class _CountingLLM:
-            def stream(self, prompt):
-                return counting_stream(prompt)
-
-            def invoke(self, prompt):
-                return "이 응답은 나오면 안 됩니다."
-
-        list(stream_rag_answer("아무 질문", empty_store, _CountingLLM(), k=3))
-
-        assert call_count["n"] == 0
+        assert result == "파트1파트2"

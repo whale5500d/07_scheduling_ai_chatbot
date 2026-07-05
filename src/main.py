@@ -85,7 +85,6 @@ async def lifespan(app: FastAPI):
 
     if _use_langgraph_backend():
         from langchain_pipeline.embedding import get_embeddings_model
-        from langchain_pipeline.llm import get_gemma_llm
         from langchain_pipeline.loader import load_document as lc_load_document
         from langchain_pipeline.splitter import split_fixed_size
         from langchain_pipeline.vector_store import build_vector_store
@@ -95,11 +94,11 @@ async def lifespan(app: FastAPI):
 
         embeddings_model = get_embeddings_model()
         lg_store = build_vector_store(lg_chunks, embeddings_model)
-        lg_llm = get_gemma_llm()
 
+        # Agent는 내부에서 Gemini LLM을 직접 생성하므로 lg_llm을 주입하지 않는다.
+        # (기존 HuggingFacePipeline은 bind_tools()를 지원하지 않아 Agent에 사용 불가)
         resources["backend"] = "langgraph"
         resources["lg_store"] = lg_store
-        resources["lg_llm"] = lg_llm
     elif _use_langchain_backend():
         from langchain_pipeline.embedding import get_embeddings_model
         from langchain_pipeline.llm import get_gemma_llm
@@ -177,15 +176,10 @@ def query(request: QueryRequest) -> QueryResponse:
     매 요청 호출에 따른 비용은 무시할 수 있는 수준이다.
     """
     if resources.get("backend") == "langgraph":
-        from langgraph_pipeline.graph import build_rag_graph
+        from langgraph_pipeline.graph import run_rag_agent
 
-        graph = build_rag_graph(resources["lg_store"], resources["lg_llm"], k=request.k)
-        result = graph.invoke({"question": request.question, "retrieved": [], "answer": ""})
-        retrieved_chunks = [
-            RetrievedChunk(text=doc.page_content, score=score)
-            for doc, score in result["retrieved"]
-        ]
-        return QueryResponse(answer=result["answer"], retrieved_chunks=retrieved_chunks)
+        answer = run_rag_agent(request.question, resources["lg_store"], k=request.k)
+        return QueryResponse(answer=answer, retrieved_chunks=[])
 
     if resources.get("backend") == "langchain":
         from langchain_pipeline.chain import build_rag_chain
@@ -228,11 +222,11 @@ def query_stream(request: QueryRequest) -> StreamingResponse:
     의도된 비대칭).
     """
     if resources.get("backend") == "langgraph":
-        from langgraph_pipeline.graph import stream_rag_answer
+        from langgraph_pipeline.graph import stream_rag_agent
 
         def event_stream() -> Iterator[str]:
-            for token in stream_rag_answer(
-                request.question, resources["lg_store"], resources["lg_llm"], k=request.k
+            for token in stream_rag_agent(
+                request.question, resources["lg_store"], k=request.k
             ):
                 yield f"data: {token}\n\n"
             yield "data: [DONE]\n\n"
@@ -265,6 +259,38 @@ def query_stream(request: QueryRequest) -> StreamingResponse:
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+class AgentQueryRequest(BaseModel):
+    question: str
+    k: int = 3
+
+
+class AgentQueryResponse(BaseModel):
+    answer: str
+
+
+@app.post("/agent/query", response_model=AgentQueryResponse)
+def agent_query(request: AgentQueryRequest) -> AgentQueryResponse:
+    """
+    DaySync Agent 엔드포인트.
+
+    RAG_BACKEND=langgraph이면 lg_store를, 그 외에는 별도 초기화된 agent_store를 사용한다.
+    GOOGLE_API_KEY가 없으면 503을 반환한다.
+    """
+    from fastapi import HTTPException
+
+    store = resources.get("lg_store") or resources.get("agent_store")
+    if store is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Agent를 사용하려면 GOOGLE_API_KEY 환경 변수를 설정해야 합니다.",
+        )
+
+    from langgraph_pipeline.graph import run_rag_agent
+
+    answer = run_rag_agent(request.question, store, k=request.k)
+    return AgentQueryResponse(answer=answer)
 
 
 @app.get("/health")
