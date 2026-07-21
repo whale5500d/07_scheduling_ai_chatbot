@@ -1,4 +1,5 @@
 # scripts/train.py
+from custom_transformer.scripts.utils.evaluation import compute_perplexity, evaluate_exact_match
 
 """
 Instruction Tuning 훈련 루프
@@ -48,13 +49,18 @@ def main():
     print("=== Instruction Tuning 훈련 루프 시작 ===\n")
 
     # 1. QA 쌍 데이터 로딩
-    qa_pairs = load_qa_pairs("scripts/data/korean_qa.txt")
+    qa_pairs = load_qa_pairs("src/custom_transformer/scripts/raw_data/korean_qa_train.txt")
+    heldout_qa_pairs = load_qa_pairs("src/custom_transformer/scripts/raw_data/korean_qa_heldout.txt")
     print(f"학습 데이터 수: {len(qa_pairs)} 쌍")
+    print(f"Held-out 데이터 수: {len(heldout_qa_pairs)} 쌍")
 
     # 2. BPE Tokenizer 초기화 및 훈련
     # tokenizer 학습은 여전히 문장 단위 리스트를 입력으로 받으므로,
     # 질문과 답변을 모두 풀어서(flatten) corpus로 사용
-    flat_corpus = [question for question, _ in qa_pairs] + [answer for _, answer in qa_pairs]
+    flat_corpus = (
+        [question for question, _ in qa_pairs] + [answer for _, answer in qa_pairs]
+        + [question for question, _ in heldout_qa_pairs] + [answer for _, answer in heldout_qa_pairs]
+    )
 
     VOCAB_SIZE = 300
     tokenizer = BPETokenizer(vocab_size=VOCAB_SIZE)
@@ -160,8 +166,31 @@ def main():
             generated_text = tokenizer.decode(trimmed_ids)
             print(f"Prompt: {prompt}")
             print(f"Generated: {generated_text}\n")
+    
+    # 7. held-out 평가
+    print("\n=== Held-out 평가 (perplexity / exact match) ===\n")
 
-    # 7. 모델 저장
+    train_perplexity = compute_perplexity(model, tokenizer, qa_pairs)
+    heldout_perplexity = compute_perplexity(model, tokenizer, heldout_qa_pairs)
+    print(f"Training Perplexity : {train_perplexity:.4f}")
+    print(f"Held-out Perplexity  : {heldout_perplexity:.4f}")
+    print(f"Perplexity Gap       : {heldout_perplexity - train_perplexity:.4f}")
+
+    exact_match_result = evaluate_exact_match(model, tokenizer, heldout_qa_pairs)
+    print(f"\nHeld-out Slot Copy Accuracy : {exact_match_result['slot_copy_accuracy']:.4f}")
+    print(f"Held-out Label Accuracy     : {exact_match_result['label_accuracy']:.4f}")
+
+    # 진단용 임시 출력 — 원인 확인 후 제거
+    print("\n=== Held-out 상세 결과 (진단용) ===")
+    for detail in exact_match_result["details"]:
+        print(f"Q: {detail['question']}")
+        print(f"  정답: {detail['gold_answer']}")
+        print(f"  생성: {detail['generated_answer']!r}")  # !r로 공백/특수문자까지 노출
+        print(f"  질문 activity: {detail['question_activity']}")
+        print(f"  label 정답 여부: {detail['is_label_correct']}, slot 정답 여부: {detail['is_slot_copy_correct']}")
+        print()
+
+    # 8. 모델 저장
     os.makedirs("checkpoints", exist_ok=True)
     torch.save(model.state_dict(), "checkpoints/korean_model.pt")
     print("모델 저장 완료: checkpoints/korean_model.pt")

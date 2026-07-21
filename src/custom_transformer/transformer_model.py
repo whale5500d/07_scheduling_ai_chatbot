@@ -34,6 +34,25 @@ class TransformerLanguageModel(nn.Module):
         # 5. 출력층 (다음 토큰 예측)
         self.output_linear = nn.Linear(d_model, vocab_size)
 
+
+        # Weight tying: output_linear이 embedding과 동일한 가중치를 공유하도록 묶음.
+        # (Press & Wolf, 2016 - "Using the Output Embedding to Improve Language Models")
+        # nn.Embedding.weight shape: (vocab_size, d_model)
+        # nn.Linear.weight shape:    (out_features, in_features) = (vocab_size, d_model)
+        # 두 shape가 동일하므로 그대로 공유 가능하다.
+
+        # embedding의 기본 초기화(std≈1.0)가 output_linear의 기본 초기화(std≈0.036)보다
+        # 훨씬 커서, 그대로 tying하면 logits 스케일이 폭발해 학습이 불안정해진다
+        # (Epoch 1 loss가 tying 전 대비 약 10배로 뛰고, 이후 loss가 진동하며 발산하는
+        # 현상으로 실제 확인됨). tying 전에 embedding을 output_linear와 비슷한
+        # 스케일(std = d_model ** -0.5)로 재초기화해 이 문제를 해소한다.
+        #
+        # 효과: 정답으로 한 번도 등장하지 않은 토큰(예: held-out activity)도,
+        # 입력으로 등장해 embedding이 학습되면 그 학습된 표현이 output_linear에도
+        # 즉시 반영되어, "출력 후보에서 완전히 배제되는" 구조적 문제가 해소된다.
+        nn.init.normal_(self.embedding.weight, mean=0.0, std=d_model ** -0.5)
+        self.output_linear.weight = self.embedding.weight
+
     def forward(self, input_ids, mask=None):
         """
         input_ids: (batch_size, seq_len)
