@@ -36,3 +36,11 @@ where = ["src"]          # src 폴더를 패키지 루트로 인식
 markers = [
     "slow: 실제 모델(Gemma 등)을 로딩하는 무거운 테스트. 기본 실행에서는 -m \"not slow\"로 제외 가능.",
 ]
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
