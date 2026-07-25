@@ -140,6 +140,7 @@ def get_gemma_llm(
     return chat_template_step | llm
 
 
+
 # ----------------------------------------------------------------------
 # 7단계 — custom_transformer (LLM 서브클래스)
 # ----------------------------------------------------------------------
@@ -158,6 +159,75 @@ def _load_qa_pairs(path: Path) -> list[tuple[str, str]]:
             qa_pairs.append((question, answer))
     return qa_pairs
 
+
+# ----------------------------------------------------------------------
+# 8단계 — Qwen2.5-1.5B-Instruct GGUF (LlamaCpp)
+# ----------------------------------------------------------------------
+_QWEN_GGUF_REPO_ID = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
+_QWEN_GGUF_FILENAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
+def format_qwen_chat_prompt(tokenizer: Any, prompt: str) -> str:
+    """
+    Qwen의 chat template을 적용한다.
+    (기존 format_gemma_chat_prompt()와 동일한 역할.)
+
+    Args:
+        tokenizer: AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B-Instruct")의 결과
+        prompt: 5단계 prompt.py가 만든, 역할 prefix 없는 순수 지시문 텍스트
+
+    Returns:
+        chat template이 적용된, 모델에 바로 입력할 수 있는 텍스트
+    """
+    messages = [{"role": "user", "content": prompt}]
+    return tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True,
+    )
+
+def get_qwen_gguf_llm(max_new_tokens: int = 80) -> Runnable:
+    """
+    Qwen2.5-1.5B-Instruct GGUF(Q4_K_M)를 LlamaCpp로 wrapping한 Runnable을 만든다.
+
+    GGUF는 transformers의 AutoModelForCausalLM으로 직접 로딩할 수 없는 llama.cpp
+    전용 포맷이라, langchain_community.llms.LlamaCpp를 쓴다. 이미 LangChain의
+    LLM(Runnable) 인터페이스를 구현하고 있어 CustomTransformerLLM처럼 별도
+    서브클래싱이 필요 없다.
+
+    Args:
+        max_new_tokens: 생성할 최대 토큰 수
+
+    Returns:
+        문자열 prompt를 입력받아 chat template 적용 -> Qwen GGUF 생성까지 한 번에
+        수행하는 Runnable. .invoke(prompt)는 생성된 텍스트를 반환하고,
+        .stream(prompt)는 토큰 단위 스트리밍 청크를 yield한다 (get_gemma_llm()과
+        동일한 인터페이스).
+    """
+    from huggingface_hub import hf_hub_download
+    from langchain_community.llms import LlamaCpp
+    from transformers import AutoTokenizer
+    import os as _os
+
+    model_path = hf_hub_download(
+        repo_id=_QWEN_GGUF_REPO_ID,
+        filename=_QWEN_GGUF_FILENAME,
+    )
+
+    # chat template 적용에는 tokenizer만 필요하다(전체 모델 가중치는 불필요) —
+    # 실제 생성 실행 자체는 LlamaCpp(GGUF 가중치)가 담당한다.
+    tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-1.5B-Instruct")
+
+    llm = LlamaCpp(
+        model_path=model_path,
+        n_ctx=2048,
+        n_threads=_os.cpu_count(),
+        max_tokens=max_new_tokens,
+        temperature=0.0,
+        streaming=True,
+    )
+
+    chat_template_step = RunnableLambda(lambda prompt: format_qwen_chat_prompt(tokenizer, prompt))
+    return chat_template_step | llm
 
 class CustomTransformerLLM(LLM):
     """

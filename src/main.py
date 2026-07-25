@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
         resources["lg_store"] = lg_store
     elif _use_langchain_backend():
         from langchain_pipeline.embedding import get_embeddings_model
-        from langchain_pipeline.llm import get_gemma_llm
+        from langchain_pipeline.llm import get_qwen_gguf_llm
         from langchain_pipeline.loader import load_document as lc_load_document
         from langchain_pipeline.splitter import split_fixed_size
         from langchain_pipeline.vector_store import build_vector_store
@@ -115,7 +115,8 @@ async def lifespan(app: FastAPI):
         # 기존 rag_pipeline 경로와 동일한 모델을 쓴다(아래 generator = TextGenerator(
         # model_name="google/gemma-4-E2B-it")와 대응) — 두 경로의 차이를 "구현 방식"으로
         # 한정하고, "어떤 모델을 쓰는가"는 동일하게 유지한다.
-        lc_llm = get_gemma_llm()
+        lc_llm = get_qwen_gguf_llm()
+        # lc_llm = get_gemma_llm()
 
         resources["backend"] = "langchain"
         resources["lc_store"] = lc_store
@@ -130,8 +131,9 @@ async def lifespan(app: FastAPI):
         store = InMemoryVectorStore()
         store.add(chunks, vectors)
 
-        generator = TextGenerator(model_name="google/gemma-4-E2B-it")
         # generator = TextGenerator(model_name="customer_transformer")
+        generator = TextGenerator(model_name="qwen-gguf")
+        # generator = TextGenerator(model_name="google/gemma-4-E2B-it")
 
         resources["backend"] = "rag_pipeline"
         resources["embedder"] = embedder

@@ -51,6 +51,10 @@ _CUSTOM_TRANSFORMER_DIR = SRC_DIR / "custom_transformer"
 _CUSTOM_QA_DATA_PATH = _CUSTOM_TRANSFORMER_DIR / "scripts" / "raw_data" / "korean_qa.txt"
 _CUSTOM_MODEL_WEIGHTS_PATH = _CUSTOM_TRANSFORMER_DIR / "scripts" / "trained_model" / "korean_model.pt"
 
+QWEN_GGUF_MODEL_NAME = "qwen-gguf"
+_QWEN_GGUF_REPO_ID = "Qwen/Qwen2.5-1.5B-Instruct-GGUF"
+_QWEN_GGUF_FILENAME = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+
 
 class TextGenerator:
     """
@@ -83,6 +87,8 @@ class TextGenerator:
 
         if model_name == CUSTOM_TRANSFORMER_MODEL_NAME:
             self._init_custom_transformer()
+        elif model_name == QWEN_GGUF_MODEL_NAME:
+            self._init_qwen_gguf()
         else:
             self._init_gemma()
 
@@ -142,6 +148,25 @@ class TextGenerator:
 
         self.model.eval()
 
+    # ------------------------------------------------------------------
+    # 초기화 — qwen
+    # ------------------------------------------------------------------
+    def _init_qwen_gguf(self) -> None:
+        from huggingface_hub import hf_hub_download
+        from llama_cpp import Llama
+        import os as _os
+
+        model_path = hf_hub_download(
+            repo_id=_QWEN_GGUF_REPO_ID,
+            filename=_QWEN_GGUF_FILENAME,
+        )
+        self.device = "cpu"
+        self.llm = Llama(
+            model_path=model_path,
+            n_ctx=2048,
+            n_threads=_os.cpu_count(),
+        )
+
     @staticmethod
     def _load_qa_pairs(path: Path) -> list[tuple[str, str]]:
         """scripts/train.py의 load_qa_pairs()와 동일한 로직."""
@@ -180,6 +205,8 @@ class TextGenerator:
 
         if self.model_name == CUSTOM_TRANSFORMER_MODEL_NAME:
             return self._generate_custom_transformer(prompt, max_new_tokens)
+        if self.model_name == QWEN_GGUF_MODEL_NAME:
+            return self._generate_qwen_gguf(prompt, max_new_tokens)
         return self._generate_gemma(prompt, max_new_tokens)
 
     def _generate_gemma(self, prompt: str, max_new_tokens: int) -> str:
@@ -245,6 +272,14 @@ class TextGenerator:
         generated_text = self.tokenizer.decode(new_token_ids)
         return generated_text.strip()
 
+    def _generate_qwen_gguf(self, prompt: str, max_new_tokens: int) -> str:
+        messages = [{"role": "user", "content": prompt}]
+        output = self.llm.create_chat_completion(
+            messages=messages,
+            max_tokens=max_new_tokens,
+        )
+        return output["choices"][0]["message"]["content"].strip()
+
     # ------------------------------------------------------------------
     # 스트리밍 — Gemma만 지원, 커스텀 Transformer는 미구현
     # ------------------------------------------------------------------
@@ -295,6 +330,9 @@ class TextGenerator:
                 prompt, max_new_tokens, fake_stream_delay
             )
             return
+        if self.model_name == QWEN_GGUF_MODEL_NAME:
+            yield from self._generate_stream_qwen_gguf(prompt, max_new_tokens)
+            return
 
         inputs = self._build_inputs(prompt)
 
@@ -344,6 +382,17 @@ class TextGenerator:
                 time.sleep(fake_stream_delay)
             yield chunk
 
+    def _generate_stream_qwen_gguf(self, prompt: str, max_new_tokens: int):
+        messages = [{"role": "user", "content": prompt}]
+        stream = self.llm.create_chat_completion(
+            messages=messages,
+            max_tokens=max_new_tokens,
+            stream=True,
+        )
+        for chunk in stream:
+            delta = chunk["choices"][0]["delta"]
+            if "content" in delta:
+                yield delta["content"]
 
 if __name__ == "__main__":
     from paths import DATA_DIR

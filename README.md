@@ -17,7 +17,9 @@
 python -m venv .venv
 source .venv/bin/activate # 1. 가상환경 활성화
 pip install -r requirements.txt # 2. 의존성 설치
-uvicorn main:app --reload --port 8000 # 3. 서버 실행
+uv run uvicorn main:app --reload --port 8000 # 3-1. 자체 rag_pipeline로 서버 실행
+RAG_BACKEND=langchain uv run uvicorn main:app --reload --port 8000 # 3-2. langchain로 서버 실행
+RAG_BACKEND=langgraph uv run uvicorn main:app --reload --port 8000 # 3-3. langgraph로 서버 실행
 ```
 
 ## 프로젝트 구조
