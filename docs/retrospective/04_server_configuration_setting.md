@@ -2,28 +2,6 @@
 
 ## 3단계 - 프로젝트 구동
 
-### 트러블 슈팅 1
-
-- 문제 상황: 모델 다운로드는 끝났지만 "Application Startup Complete" 로그 없이 프롬프트로 그대로 돌아왔다. 프로세스가 조용히 강제 종료된 것으로 보임. t3.micro는 메모리가 1GB라서, 임베딩 모델과 LLM을 동시에 메모리에 로드하는 과정에서 커널의 OOM killer가 프로세스를 강제 종료했을 가능성이 높음.
-- 원인 확인: `Out of memory: Killed process 4051 (uvicorn) total-vm: 2454008kB, anon-rss:580216kB`. OOM Killer가 확인됨. t3.micro는 물리 메모리가 1GB 뿐인데, sentence-transfomers 임베딩 모델(90.9MB)과 대화용 LLM(8.75MB 토크나이저 + 별도 모델 가중치)을 함꼐 메모리에 로드하는 과정에서 실제 사용 메모리(anon-rss)가 약 580MB까지 올라갔고, 여기에 OS 기본 사용량·스왑 부재가 겹쳐 커널이 메모리 부족을 판단해 프로세스를 강제 종료함.
-- 예상 해결 방안:
-  1. 스왑(swap) 추가: 즉시 적용 가능, 물리 메모리 부족을 디스크로 보완
-
-     ```shell
-     sudo fallocate -l 2G /swapfile
-     sudo chmod 600 /swapfile
-     sudo mkswap /swapfile
-     sudo swapon /swapfile
-     free -h # 스왑 반영 확인
-     ```
-
-     - 단, 루프 볼륨 여유 공간이 641MB로 넉넉하지 않으므로, 스왑 파일 크기(2G)가 들어갈 공간이 있는지 확인 필요.
-
-  2. 인스턴스 유형 상향: 근본 해결책, 하지만 프리 티어(t3.micro) 범위를 벗어나 비용 발생 가능
-
-- 재발 방지:
-  - 이번 챌린지 목적(프로세스, 스레드, 메모리 관찰, WireShark 캡처)에는 서버가 몇 초라도 떠 있으면 충분하므로, 스왑 추가로 해결하는 게 프리 티어 범위 내에서 가장 현실적이다.
-
 ### 3단계 트러블슈팅 1 - 메모리 및 디스크 부족 문제 개선 진행 과정
 
 #### 문제 상황
