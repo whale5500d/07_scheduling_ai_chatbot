@@ -170,6 +170,7 @@ class TestBuildTarget:
 #    기존 evaluate_*() 함수에 정확히 전달하는지 검증 (monkeypatch로 실제 함수 대체)
 # ----------------------------------------------------------------------
 class TestFaithfulnessEvaluator:
+    @pytest.mark.slow
     def test_extracts_question_answer_and_chunk_texts(self, monkeypatch):
         captured = {}
 
