@@ -463,9 +463,35 @@ uv(래퍼)
 - **관찰 도구의 한계 인지**: `ps` 같은 정적 스냅샷 도구는 특정 순간만 포착하므로, 실시간으로 변하는 스레드/프로세스 상태를 놓칠 수 있다. `top -H`처럼 실시간 갱신되는 도구와 병행해야 정확한 동작을 파악할 수 있다는 것을 여러 차례 확인함(스레드 수 실시간 증가, 워커 프로세스 검색 누락 등)
 - **다음 과제로 남긴 문제**: 동시 요청 시 서버 크래시(`free(): invalid size`)에 대한 실질적 해결(요청 순차 처리를 위한 락/세마포어 적용, 또는 요청별 컨텍스트 분리)은 이번 관찰 범위에서 다루지 않고 별도 과제로 남김.
 
-## 7단계 - WireShark 설치
+## 7단계 - WireShark 설치 및 캡처 인터페이스 설정
 
-## 8단계 - 외부 접근 개방
+- `brew install --cask wireshark` (설치 과정에서 ChmodBPF 설치 필수 — 관리자 권한 없이 패킷 캡처를 허용하는 헬퍼)
+- 활성 네트워크 인터페이스 확인: `route get default | grep interface` → `en0`(Wi-Fi) 확인
+- Wireshark 실행 후 `en0` 인터페이스 선택, 정상적으로 실시간 캡처(mDNS, ARP, DNS, TLS 등 배경 트래픽) 확인 완료
+
+![Wireshark en0 캡처 화면](./images/260726_wireshark_en0_capture.png)
+
+## 8단계 - 외부 접근 개방 (리버스 프록시 구성)
+
+### 결정 사항
+
+- 로드맵 원안은 HTTP(80)/HTTPS(443) 직접 개방이었으나, 실무 관례에 따라 nginx 리버스 프록시를 앞단에 두는 방식으로 변경
+- HTTPS는 인증서(도메인 필요) 발급이 이번 챌린지 범위를 벗어나 제외 — HTTP(80)만 구성
+
+### 진행 과정
+
+- `sudo apt install -y nginx` 설치
+- `/etc/nginx/sites-available/daysync` 설정 생성: 80번 포트 요청을 `proxy_pass`로 `127.0.0.1:8000`(uvicorn)에 전달
+- `sudo ln -s .../sites-available/daysync .../sites-enabled/`로 설정 활성화
+- 기본 설정(`sites-enabled/default`)과 `server_name` 충돌 경고 확인 → 심볼릭 링크만 제거(원본은 `sites-available`에 보존됨)하여 해결
+- `sudo systemctl restart nginx` → `active (running)` 확인, master process 1개 + worker process 2개 구조로 실행됨을 확인
+- AWS 보안 그룹: 80번 포트(HTTP) 인바운드 규칙 추가, 8000번 포트는 규칙에서 제거(또는 "내 IP" 제한)해 nginx를 거치지 않은 직접 접근 차단
+- 크롬에서 포트 번호 없이 `http://<퍼블릭 IP>` 접속 → DaySync 응답 정상 확인
+
+### 인사이트
+
+- 리버스 프록시가 표준 포트 매핑, TLS 처리 분리, 다중 서비스 통합, 보안 경계 구분의 역할을 한다는 걸 실습으로 확인
+- `sites-available`/`sites-enabled` 구조가 "설정 원본 보관"과 "활성화 여부 표시"를 분리해, 설정을 지우지 않고도 안전하게 켜고 끌 수 있게 해준다는 점을 확인
 
 ## 9단계 - 트래픽 및 패킷 분석 보고서 작성
 
