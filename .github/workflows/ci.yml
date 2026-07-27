@@ -64,5 +64,6 @@ jobs:
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             cd ~/07_scheduling_ai_chatbot
+            aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin 668425684373.dkr.ecr.ap-northeast-2.amazonaws.com
             docker compose pull
             docker compose up -d
