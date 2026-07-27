@@ -54,6 +54,10 @@ RAG_BACKEND_ENV_VAR = "RAG_BACKEND"
 LANGCHAIN_BACKEND_VALUE = "langchain"
 LANGGRAPH_BACKEND_VALUE = "langgraph"
 
+# 배포 파이프라인 검증용 — 이미지가 실제로 갱신되는지 확인하기 위한 식별자.
+# 검증 후에는 유지해도 무방하다 (버전 확인용으로 계속 활용 가능).
+APP_VERSION = "v1-pipeline-test"
+
 # 서버 전체에서 공유할 리소스(모델, 저장소)를 담을 컨테이너.
 # 전역 변수를 직접 쓰는 대신 객체 하나에 묶어, 어떤 리소스들이 공유되는지 명확히 한다.
 resources: dict = {}
@@ -309,4 +313,4 @@ def health() -> dict:
         indexed_chunks = len(lc_store.store) if lc_store is not None else 0
     else:
         indexed_chunks = len(resources.get("store", []))
-    return {"status": "ok", "indexed_chunks": indexed_chunks, "backend": backend}
+    return {"status": "ok", "indexed_chunks": indexed_chunks, "backend": backend, "version": APP_VERSION}
