@@ -49,3 +49,20 @@ jobs:
         run: |
           docker build -t ${{ secrets.ECR_REPOSITORY_URI }}:latest .
           docker push ${{ secrets.ECR_REPOSITORY_URI }}:latest
+
+  deploy:
+    needs: build-and-push
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: EC2 SSH 접속 및 배포
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            cd ~/07_scheduling_ai_chatbot
+            docker compose pull
+            docker compose up -d
