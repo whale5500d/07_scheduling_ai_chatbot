@@ -103,3 +103,63 @@
   2. `AmazonEC2ContainerRegistryPowerUser`로 교체 — push/pull 전용, 저장소 삭제·정책 변경 권한 없음
 - 결정 및 이유: PowerUser로 교체. 이 EC2가 실제로 수행하는 동작은 이미지 pull(및 검증 단계의 push)뿐이므로 최소 권한 원칙에 부합. 교체 후 `aws ecr describe-repositories --region ap-northeast-2`로 기존 pull 동작이 정상 유지되는지 재검증하여 확인
 - 인사이트: 탈취 시 피해 범위는 그 자격 증명에 연결된 IAM 정책이 허용하는 범위 그 자체이며, PowerUser로 좁히면 저장소 자체를 삭제당하거나 접근 정책을 임의로 변경당하는 위험을 원천 차단할 수 있다는 점
+
+---
+
+## 반복 에러 해결 - 반복되는 "No space left on device" 이슈 해결 (초안)
+
+- 문제 상황
+
+`deploy` job에서 `docker compose pull` 실행 시 `no space left on device`로 이미지 레이어 압축 해제(extract)가 실패하는 현상이 여러 차례(에러 6, 그리고 EBS 확장 이후 재발) 반복됨. EBS 볼륨을 19GB → 28GB로 확장했음에도 재발하여, 단순 용량 확장만으로는 근본 해결이 되지 않음을 확인.
+
+**원인 분석**
+
+`docker inspect --format='{{.Size}}'`로 확인한 이미지 크기(3.22GB, content store 상의 압축 상태에 가까운 값)와, `docker system df -v`로 확인한 실제 디스크 점유량(9.51GB, snapshotter가 압축 해제한 후의 실제 크기) 사이에 약 3배 차이가 있음을 발견. containerd는 이미지 pull 시 압축된 레이어를 먼저 content store에 저장한 뒤 별도로 압축 해제해 snapshot으로 만드는 2단계 과정을 거치므로, 실제로 필요한 여유 공간은 이미지의 표면상 크기(3GB)가 아니라 압축 해제 후 크기(9.5GB)를 기준으로 판단해야 함.
+
+추가로, EC2에 실행 중인 컨테이너가 참조하지 않는 예전 이미지(옛 dangling 이미지, 로컬 테스트용 `scheduling-chatbot:test`)가 배포를 반복하며 정리되지 않고 계속 누적되어 있었음. `docker image prune -af`로 수동 정리한 결과, 여유 공간이 6.8GB → 9.4GB로 개선되어 이 누적이 실제 원인 중 하나였음을 확인.
+
+**결정 및 대응**
+
+- 매 배포 시 자동으로 미사용 이미지를 정리하도록 `deploy` job에 `docker image prune -af --filter "until=${PRUNE_THRESHOLD}"`를 `docker compose pull` 이전 단계로 추가
+- 생성 시점 기준 필터(`until`)를 사용해, 방금 pull된 새 이미지가 실수로 삭제되지 않도록 안전 장치를 둠
+- 정리 기준 시간을 코드에 하드코딩하지 않고, Github 저장소 Repository Variables(`IMAGE_PRUNE_THRESHOLD`, 기본값 `24h`)로 분리해 코드 수정 없이 운영자가 조정 가능하도록 함
+- (별도 진행 예정) 이미지 자체의 크기(3.22GB/9.51GB) 축소는 근본적 해결책으로 남겨두고, multi-stage build 등으로 별도 검토
+
+**인사이트**
+
+- "이미지 크기가 3GB니까 여유 공간 6.8GB면 충분하다"는 판단은 압축 상태 크기만 보고 압축 해제 후 크기를 고려하지 않은 것이었음을 직접 확인함
+- `docker system df`(요약)와 `docker system df -v`(개별 이미지별) 두 명령의 SIZE 합계가 다르게 나오는 것을 실제로 관찰함(레이어 공유로 인한 중복 계산 차이로 추정)
+
+## 반복되는 "No space left on device" 이슈 해결
+
+- 문제 상황: 앞서 EBS 볼륨을 19GB에서 28GB로 확장하였음에도, `deploy` job의 로그 확인 결과 `docker compose pull` 실행 시, download 과정은 마쳤으나, extract 과정에서 `no space left on device`로 이미지 레이어 압축 해제(extract)가 실패하는 현상이 재발함.
+- 원인 분석:
+  - 새 이미지 압축 상태: 3.22GB (`aws ecr describe-images`)
+  - 기존 이미지 압축 상태: 3.22GB (`docker inspect`)
+  - 기존 이미지 실제 디스크 점유량: 9.51GB (`docker system df -v`)
+  - 디스크 가용 크기: 6.8GB
+  - pull 명령어는 압축 상태의 이미지를 받은 뒤 압축 해제까지 수행하는데, 해제 단계에서 에러가 발생함. 기존 이미지의 압축/해제 크기가 약 3배 커지므로, 새 이미지의 해제 크기도 이와 유사할 것으로 유추 가능함. 따라서 당장의 여유 공간을 늘리는 것만으로는 근본 해결이 되지 않으며, 이미지 자체를 효율적으로 관리하는 접근이 필요함
+
+### 1차 시도 - (가용 크기 38% 개선) 미사용 이미지 자동 정리
+
+- 원인: `docker system` 명령어로 전체 3개 이미지 중 하나만 활성되고, 2개는 비활성 상태이므로, 배포 테스트 과정에서 남겨진 데이터를 확인했고, 크기가 대략 3GB 가량 차지했음.
+- 대응: `docker image prune -af`. prune 명령어로 불필요한 이미지를 제거할 수 있도록 수정함.
+- 결과:
+  - 디스크 가용 크기: 9.4GB (38% 개선, 그 외 지표는 동일)
+- 한계: 다만, 디버깅 또는 롤백용 이미지까지 모두 제거될 수 있고 자동 배포 파이프라인에서는 사람의 확인 절차가 생략되는 위험성이 있음.
+- 보완: prune 명령어를 `deploy` job에서 pull 직전에 실행하되 `--filter "until=24h"`를 추가하여 생성 시점(24h) 기준으로 정리하여 삭제되지 않도록 함. 이를 통해 "실행 중이지 않고, 만들어진지 24시간이 지난 이미지"만 제거하여, 디버깅, 롤백용 이미지가 제거되지 않도록 보완 장치 마련. (실제 `24h`는 Github Repository Variable로 설정하여 동적으로 관리할 수 있도록 설정)
+
+### 2차 시도 - (가용 크기 81% 개선) 이미지 자체 크기 축소
+
+- 원인: 로컬 개발 환경에서는 CUDA(GPU) 기준으로 진행했으나, 실제 배포 대상인 EC2 인스턴스(c7i-flex.large)는 CPU 전용 환경임. `pyproject.toml`에는 CPU 전용 인덱스가 이미 반영되어 있었지만, `uv.lock`은 재생성되지 않아 CUDA 관련 패키지가 그대로 고정(lock)되어 있었음.
+- 대응: `uv lock` 명령으로 lock 파일을 재생성해 CUDA 관련 패키지를 제거
+- 결과:
+  - 새 이미지 압축 상태: 0.622GB (81% 개선)
+  - 기존 이미지 압축 상태: 0.622GB (81% 개선)
+  - 기존 이미지 실제 디스크 점유량: 2.93GB (69% 개선)
+  - 디스크 가용 크기: 17GB (81% 개선)
+- 한계: 현재 프로젝트는 지원용 개인 프로젝트로 AWS 비용을 고려해 GPU가 없는 인스턴스 유형을 사용했지만, 실제 실무에서는 GPU가 있는 인스턴스라면 CUDA 기준으로 `uv.lock`을 재전환해야 함. (이 경우 아래 커밋의 CPU 전환 작업을 참고하여 관련 소스 코드 제거할 것)
+  - `chore: pytorch-cpu 사이즈로 변경 - AWS 인스턴스가 t2.micro` (2f97e59f023534e3982db7f8f5c24b8d01e56561)
+  - `fix: uv.lock을 pyproject.toml의 CPU 전용 torch 인덱스 기준으로 재생성 - nvidia CUDA 의존성 제거` (cdd6c68a18490de6075831ad8da3ecaa6b4278ce)
+
+- 인사이트:
