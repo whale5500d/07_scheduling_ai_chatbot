@@ -50,6 +50,7 @@ from langchain_core.embeddings import DeterministicFakeEmbedding
 from langchain_core.language_models.fake import FakeListLLM, FakeStreamingListLLM
 
 import main
+from main import APP_VERSION
 from langchain_pipeline.vector_store import build_vector_store
 from rag_pipeline.vector_store import InMemoryVectorStore as LegacyInMemoryVectorStore
 
@@ -243,16 +244,16 @@ class TestHealthEndpointBranching:
     def test_rag_pipeline_backend_reports_indexed_chunks_and_backend_name(self, legacy_resources):
         result = main.health()
 
-        assert result == {"status": "ok", "indexed_chunks": 2, "backend": "rag_pipeline"}
+        assert result == {"status": "ok", "indexed_chunks": 2, "backend": "rag_pipeline", "version": APP_VERSION}
 
     def test_langchain_backend_reports_indexed_chunks_and_backend_name(self, langchain_resources):
         result = main.health()
 
-        assert result == {"status": "ok", "indexed_chunks": 2, "backend": "langchain"}
+        assert result == {"status": "ok", "indexed_chunks": 2, "backend": "langchain", "version": APP_VERSION}
 
     def test_health_before_lifespan_runs_does_not_raise(self):
         """resources가 비어 있어도(lifespan이 아직 실행되지 않은 상태) 예외 없이
         기본값(rag_pipeline, 0개)을 반환해야 한다 — 기존 동작과 동일."""
         result = main.health()
 
-        assert result == {"status": "ok", "indexed_chunks": 0, "backend": "rag_pipeline"}
+        assert result == {"status": "ok", "indexed_chunks": 0, "backend": "rag_pipeline", "version": APP_VERSION}

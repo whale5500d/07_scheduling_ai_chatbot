@@ -24,7 +24,7 @@ def generator():
     """모듈 전체에서 TextGenerator를 한 번만 로딩하여 재사용한다."""
     return TextGenerator()
 
-
+@pytest.mark.slow
 class TestEvaluateContextPrecision:
     """evaluate_context_precision() 함수에 대한 테스트 그룹 (Level 1: LLM-as-a-Judge)"""
 

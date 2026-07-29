@@ -12,6 +12,7 @@ import pytest
 
 from .evaluate_faithfulness import evaluate_faithfulness  # noqa: E402
 
+@pytest.mark.slow
 class TestEvaluateFaithfulness:
     """evaluate_faithfulness() 함수에 대한 테스트 그룹"""
 
