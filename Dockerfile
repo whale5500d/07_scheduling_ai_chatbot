@@ -15,6 +15,7 @@ WORKDIR /app
 
 # 의존성 정의 파일 먼저 복사 (레이어 캐싱: 소스 코드만 바뀌면 이 레이어는 재사용됨)
 COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-install-project
 
 # find_project_root()가 pyproject.toml을 기준으로 PROJECT_ROOT를 찾으므로,
 # src/, data/ 모두 pyproject.toml과 같은 계층 구조로 유지해야 함
