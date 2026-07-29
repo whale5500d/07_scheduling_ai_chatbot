@@ -210,11 +210,6 @@ docker push 668425684373.dkr.ecr.ap-northeast-2.amazonaws.com/scheduling-chatbot
   - 2차 시도: ECR 로그인 누락으로 인한 배포 실패 (성공 표시로 오인): [`05_ci_cd.md` - 에러 5](./retrospective/05_ci_cd.md#에러-5---deploy-단계-ecr-로그인-누락으로-인한-배포-실패-성공으로-오인)
   - 3차 시도: 디스크 공간 부족 및 성공 표시 오탐 재발: [`05_ci_cd.md` - 에러 6](./retrospective/05_ci_cd.md#에러-6---deploy-job-디스크-공간-부족-및-성공-표시-오탐-재발)
 
-### 추가로 다뤄볼 만한 항목
-
-- Elastic IP 과금 정책(2024년 2월 이후 attach 여부 무관 과금)과 일반 퍼블릭 IP의 차이
-- Docker `build`/`push`/`pull`/`up` 명령어 흐름과, EC2에서 ECR 인증 토큰이 세션 간 공유되는 방식(`~/.docker/config.json`, 12시간 만료)
-
 ## 13단계 - 코드 푸시 → 전체 파이프라인(CI→이미지 push→EC2 자동 배포) 통합 테스트
 
 ### 진행 과정
@@ -236,3 +231,12 @@ docker push 668425684373.dkr.ecr.ap-northeast-2.amazonaws.com/scheduling-chatbot
 - AWS 사용 범위가 EC2 단일 인스턴스 운영에서, ECR(이미지 저장소), IAM(Role/User/정책), Github Actions와의 인증 연동으로 확장됨. "Docker 이미지를 어떻게 안전하게 빌드·저장·배포할 것인가"라는 하나의 문제를 해결하면서 익힘.
 - 실제로 겪은 에러들(포트 충돌, IAM 권한, SSH 접속 제한, ECR 인증 만료, 디스크 공간 부족, CI 성공 표시 오탐 등)이 각각 AWS/Docker/Linux의 서로 다른 계층에서 발생했고, 그 중 일부(Elastic IP 과금 정책, Docker 배포 파이프라인 전체 흐름과 인증 토큰 공유 방식, Secrets 중앙 관리 도구)는 이번 챌린지 범위를 벗어나는 별도 딥다이브 주제로 선별해 남겨둠
 - 챌린지를 관통하는 하나의 인사이트: Docker는 새로운 격리 기술을 발명한 것이 아니라, 리눅스 커널의 namespace(격리)와 cgroups(자원 제한)를 union filesystem 기반의 계층형 이미지와 결합해, 실행 환경 자체를 코드와 함께 재현 가능한 단위로 고정한 도구였음
+
+## 학습해 볼 딥다이브 주제
+
+1. ELB 헬스체크 및 전체 장애 시 fallback 라우팅
+2. Docker 배포 파이프라인 전체 흐름(`build`/`push`/`pull`/`up`)과 EC2 ECR 인증 토큰이 세션 간 공유·만료 방식(12시간 만료)
+3. Secrets 중앙 관리 도구
+4. Elastic IP 과금 정책과 일반 퍼블릭 IP 차이
+5. 공인 IP/사설 IP, NAT 동작 원리
+6. Content-addressable storage(내용 기반 주소 지정) — 데이터 자체의 내용을 해시로 변환해 저장 위치의 키로 삼는 저장 방식 개념. Docker 레이어 캐싱의 근간이 되는 원리
