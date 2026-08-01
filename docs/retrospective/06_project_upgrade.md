@@ -56,6 +56,7 @@ AI, PL
 ### 개념 학습 정리(1차 초안)
 
 - RAG는 pretrained model이 일반적으로(generally) 학습할 수 없는 특수한 데이터(최신, 비공개, 조직 내부 데이터 등)를 외부에 노출하지 않으면서 나의 프로젝트(실무에서는 나의 서비스)가 추론할 수 있도록 만들어진 프레임워크로 해결하는 방법입니다.
+- 모델의 파라메트릭 지식(parametric knowledge)과 실제 추론 시점에 필요한 지식 사이의 간극(knowledge gap)을 메우는 문제로 귀결됩니다.
 
 - RAG 이외에도 해결할 수 있는 방법은 존재합니다. 대표적으로 파인튜닝이 있습니다. (그 외 다른 방법이 있는지 탐색하기)
   1.  pretrained model 자체를 재학습하는 방법입니다. foundation model이 있는 상황이라면, 시간이 오래 걸리고, 외부에서 만들어진 foundation model이라면 현실적으로 재학습이 어렵습니다. (표현이 추상적임. 구체적인 표현으로 개선 필요)
@@ -64,3 +65,7 @@ AI, PL
 - RAG 파이프라인은 유연한 아키텍처 설계 방법으로 데이터, 검색기, LLM이라는 핵심 구성요소로 원활하게 교체하거나 업데이트할 수 있습니다. 유연성 덕분에 pretrained model 재학습, 파인튜닝과 같은 비용이 많이 소모되는 방법을 사용하지 않고 해결할 수 있습니다. 원 논문에서는 이를 prevenance(출처 추적), updatability(갱신 가능성)을 가진다고 언급합니다.
   - prevenance가 있다면, 사용자에게 정확하고 검증된 정보를 제공할 수 있습니다.
   - updatability가 있다면, 회사에게 각종 경제적 비용 절감 효과(에러 대응 가속화, 토큰 사용량 감소 등)를 제공할 수 있습니다.
+
+- 참고 자료
+  - [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Lewis et al., 2020](https://arxiv.org/pdf/2005.11401)
+  - [NVIDIA - What is Retrieval-Augmented-Generation?](https://blogs.nvidia.com/blog/what-is-retrieval-augmented-generation/)
