@@ -127,3 +127,24 @@ taskipy는 python 전용이고, Makefile의 경우 범용이라 여러 언어를
 **개념이 포함된 섹션**
 
 PL
+
+### 개념 학습 정리 - LangGraph 폴더 구조 방법론과 배포 호환성
+
+**문제 상황**
+
+4단계(`langgraph_pipeline/tools.py` 계층 재배치) 진행 과정에서 분리된 기능(도구, LLM 생성, 노드 함수)을 관리하는 방법에 대해 질문했고, LangGraph 공식 문서에 권장 구조(`utils/tools.py`, `nodes.py`, `state.py` + `agent.py`)가 있다는 것을 확인함.
+
+**부족한 개념**
+
+LangGraph 공식 권장 폴더 구조의 존재 여부, LangGraph와 LangChain의 관계, 현재 프로젝트 구조가 향후 LangSmith 배포와 호환되는지에 대한 이해가 부족했음.
+
+**알게 된 사실**
+
+- LangGraph 공식 문서는 애플리케이션 구조를 `my-app/my_agent/utils/`(tools.py, nodes.py, state.py) + `agent.py`로 권장함. 현재 프로젝트는 `src/langgraph_pipeline/utils/`로, 최상위 감싸는 폴더명만 프로젝트 맥락(여러 백엔드 공존)에 맞게 생략된 형태이며 원칙은 동일하게 적용됨.
+- LangGraph는 LangChain 없이도 단독 사용 가능하지만, 실무에서는 LangChain의 표준 인터페이스(`ChatModel`, `bind_tools()`, `@tool` 데코레이터, `AIMessage.tool_calls`)를 LangGraph 노드 내부에서 그대로 재사용하는 것이 일반적임. `tools_condition` 같은 LangGraph prebuilt 함수 자체가 `tool_calls` 필드(LangChain이 정의)를 검사하도록 설계되어 있어, 둘은 서로를 전제로 만들어짐.
+- LangGraph에는 "Application Structure"라는 전용 공식 가이드가 있지만, LangChain에는 이에 대응하는 애플리케이션 폴더 구조 공식 가이드가 없음. Repository Structure(LangChain 자체 소스 저장소 구조)와 LangChain Templates(배포용 참조 아키텍처)는 목적이 다름.
+- `langgraph.json`의 `dependencies`/`graphs` 필드는 모노레포 및 중첩 경로를 지원하므로, 현재처럼 `src/` 아래 여러 파이프라인이 공존하는 구조에서도 추후 배포 시 `graphs` 필드에 정확한 경로(`./src/langgraph_pipeline/graph.py:build_rag_graph`)만 명시하면 됨. 지금 폴더 구조를 미리 공식 예시에 맞춰 바꿀 필요는 없음.
+
+**개념이 포함된 섹션**
+
+AI
