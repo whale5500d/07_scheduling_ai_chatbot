@@ -19,7 +19,7 @@ langgraph_pipeline: RAG 파이프라인 → Agent 전환
 
 [LLM이 판단하는 방법 — bind_tools()]
 
-  tools.py의 get_agent_llm()이 ChatGoogleGenerativeAI.bind_tools(tools)를 호출한다.
+  utils/llm.py의 get_agent_llm()이 ChatGoogleGenerativeAI.bind_tools(tools)를 호출한다.
   bind_tools()는 도구 목록의 스키마(이름·설명·파라미터)를 LLM에 등록한다.
   이후 LLM은 응답을 생성할 때 두 가지 중 하나를 선택한다:
     (a) AIMessage(content="직접 답변")      → tools_condition → END
