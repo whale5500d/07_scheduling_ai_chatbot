@@ -57,7 +57,6 @@ def calc_preference_score(score: float) -> str:
 
     return f"{grade} (점수: {score})"
 
-
 @tool
 def check_schedule_conflict(first_response: str, second_response: str) -> str:
     """같은 활동에 대한 두 응답을 비교하여 일정 충돌(SC-114) 가능성을 판단합니다.
@@ -104,7 +103,6 @@ def check_schedule_conflict(first_response: str, second_response: str) -> str:
         f"충돌 없음: 두 응답 모두 '{c1}'입니다. SC-114 코드가 발생하지 않습니다."
     )
 
-
 def make_search_tool(store: InMemoryVectorStore, k: int = 3):
     """store를 클로저로 캡처한 search_daysync_docs 도구를 반환합니다.
 
@@ -136,7 +134,6 @@ def make_search_tool(store: InMemoryVectorStore, k: int = 3):
 
     return search_daysync_docs
 
-
 def get_all_tools(store: InMemoryVectorStore, k: int = 3) -> list:
     """Agent에 바인딩할 도구 전체 목록을 반환합니다.
 
@@ -152,35 +149,3 @@ def get_all_tools(store: InMemoryVectorStore, k: int = 3) -> list:
         calc_preference_score,
         check_schedule_conflict,
     ]
-
-
-_DEFAULT_MODEL = "gemini-2.0-flash-lite"
-
-
-def get_agent_llm(tools: list, model: str = _DEFAULT_MODEL):
-    """도구가 바인딩된 Gemini ChatModel을 반환합니다.
-
-    bind_tools()로 도구 스키마를 LLM에 주입한다.
-    이후 llm.invoke()가 반환하는 AIMessage는 LLM이 도구 호출을 결정했을 때
-    tool_calls 필드를 채운다 — 이것이 "LLM이 판단한다"는 동작의 실체다.
-
-    BaseLLM(HuggingFacePipeline)과의 차이:
-      BaseLLM은 bind_tools()를 지원하지 않아 tool_calls를 생성할 수 없다.
-      ChatModel(ChatGoogleGenerativeAI)만 native tool calling을 지원한다.
-    """
-    from langchain_google_genai import ChatGoogleGenerativeAI
-    llm = ChatGoogleGenerativeAI(model=model)
-    return llm.bind_tools(tools)
-
-
-def make_call_model_node(llm):
-    """call_model 노드 함수를 반환합니다.
-
-    state["messages"] 전체(대화 히스토리)를 LLM에 전달하고,
-    반환된 AIMessage를 {"messages": [response]}로 감싸 반환한다.
-    add_messages reducer가 이 새 메시지를 히스토리에 append한다.
-    """
-    def call_model(state) -> dict:
-        response = llm.invoke(state["messages"])
-        return {"messages": [response]}
-    return call_model

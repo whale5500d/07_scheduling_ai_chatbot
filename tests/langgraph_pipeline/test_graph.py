@@ -29,7 +29,8 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langchain_pipeline.vector_store import build_vector_store
 from langgraph_pipeline.graph import run_rag_agent
 from langgraph_pipeline.state import AgentState
-from langgraph_pipeline.tools import get_all_tools, make_call_model_node
+from langgraph_pipeline.utils.tools import get_all_tools
+from langgraph_pipeline.utils.nodes import make_call_model_node
 
 
 @pytest.fixture
