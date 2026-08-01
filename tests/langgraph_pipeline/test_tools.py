@@ -17,7 +17,7 @@ from langchain_core.embeddings import DeterministicFakeEmbedding
 from langchain_core.vectorstores import InMemoryVectorStore
 
 from langchain_pipeline.vector_store import build_vector_store
-from langgraph_pipeline.tools import (
+from langgraph_pipeline.utils.tools import (
     calc_preference_score,
     check_schedule_conflict,
     get_all_tools,
