@@ -53,19 +53,24 @@ LangGraph `/query` 테스트 중 클라이언트에는 500, 인스턴스 내부 
 
 AI, PL
 
-### 개념 학습 정리(1차 초안)
+### 개념 학습 정리(2차 개선안)
 
-- RAG는 pretrained model이 일반적으로(generally) 학습할 수 없는 특수한 데이터(최신, 비공개, 조직 내부 데이터 등)를 외부에 노출하지 않으면서 나의 프로젝트(실무에서는 나의 서비스)가 추론할 수 있도록 만들어진 프레임워크로 해결하는 방법입니다.
-- 모델의 파라메트릭 지식(parametric knowledge)과 실제 추론 시점에 필요한 지식 사이의 간극(knowledge gap)을 메우는 문제로 귀결됩니다.
+- Pretrained Model만으로는 모델의 파라메트릭 지식과 실제 추론 시점에 필요한 지식 사이 간극을 메울 수 없습니다. RAG 프레임워크는 일반 지식과 특수 지식 사이 간극 문제(이하, 간극 문제)를 해결하기 위해 등장했습니다.
 
-- RAG 이외에도 해결할 수 있는 방법은 존재합니다. 대표적으로 파인튜닝이 있습니다. (그 외 다른 방법이 있는지 탐색하기)
-  1.  pretrained model 자체를 재학습하는 방법입니다. foundation model이 있는 상황이라면, 시간이 오래 걸리고, 외부에서 만들어진 foundation model이라면 현실적으로 재학습이 어렵습니다. (표현이 추상적임. 구체적인 표현으로 개선 필요)
-  2.  (다른 방법이 있는지 탐색 후, 다른 방법의 한계점 작성 필요) 파인튜닝은 OOO 입니다.
+- 간극 문제를 해결하는 방법은 이론 상 아래 3가지 방법이 더 있으나, 기업의 비용 편익 관점에서 한계를 가집니다. 다른 대안이 없다면 RAG 프레임워크는 간극 문제를 해결할 수 있는 최적의 방법입니다.
+  - Pretraining from Scratch: AI 분야 글로벌 4개 기업을 제외한 모든 회사는 From Scratch Model이 없으므로, 다시 재학습은 비현실적인 수단입니다.
+  - Fining-Tuning: 설령 From Scratch Model이 있어도, 모델의 가중치를 수정하기 위한 경제적 비용(재학습 시간, 금융 비용 등)은 기하급수적으로 높습니다. 따라서 합리적인 선택일 수 없습니다.
+  - Prompt 직접 삽입: 온라인에 공개된 일반 데이터는 이미 Pretrained Model이 대부분 학습했으며, 특수한 데이터(최신, 비공개, 조직 내부 데이터 등)를 Prompt에 직접 삽입하는 방법은 보안 상 위험합니다.
 
-- RAG 파이프라인은 유연한 아키텍처 설계 방법으로 데이터, 검색기, LLM이라는 핵심 구성요소로 원활하게 교체하거나 업데이트할 수 있습니다. 유연성 덕분에 pretrained model 재학습, 파인튜닝과 같은 비용이 많이 소모되는 방법을 사용하지 않고 해결할 수 있습니다. 원 논문에서는 이를 prevenance(출처 추적), updatability(갱신 가능성)을 가진다고 언급합니다.
-  - prevenance가 있다면, 사용자에게 정확하고 검증된 정보를 제공할 수 있습니다.
-  - updatability가 있다면, 회사에게 각종 경제적 비용 절감 효과(에러 대응 가속화, 토큰 사용량 감소 등)를 제공할 수 있습니다.
+- RAG 파이프라인은 데이터, 검색기(Retriever)이라는 핵심 구성요소로 유연한 아키텍처 설계가 가능합니다. 그래서 다른 해결책이 제시하지 못한 현실적인 묘안입니다.
+  - 이미 존재하는 Pretrained Model을 사용하기 때문에, From Scratch Model이 없어도 AI 서비스를 개발 및 운영할 수 있으므로 현실적인 해법입니다.
+  - 만약 From Scratch Model가 있더라도, 자체 서버와 검색기를 활용해 모델의 가중치를 직접 수정하지 않아도 되어 비용이 많이 소모되지 않는 방법으로 합리적인 선택입니다.
+  - 마지막으로 특수 데이터를 Pretrained Model에 Prompt로 직접 입력하지 않아도 되므로, 보안성이 높습니다.
+
+- 원 논문에 따르면 RAG로 얻을 수 있는 2가지 장점을 Updatability(갱신 가능성), Prevenance(출처 추적)을 가진다고 언급합니다.
+  - Updatability가 있으므로, 회사에게 각종 경제적 비용 절감 효과(에러 대응 가속화, 토큰 사용량 감소 등)을 제공할 수 있음.
+  - Prevenance가 있으므로, 유저에게 정확하고 검증된 정보를 제공할 수 있음.
 
 - 참고 자료
-  - [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Lewis et al., 2020](https://arxiv.org/pdf/2005.11401)
+  - [원 논문, Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Lewis et al., 2020](https://arxiv.org/pdf/2005.11401)
   - [NVIDIA - What is Retrieval-Augmented-Generation?](https://blogs.nvidia.com/blog/what-is-retrieval-augmented-generation/)
