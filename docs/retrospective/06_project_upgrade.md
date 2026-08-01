@@ -53,24 +53,32 @@ LangGraph `/query` 테스트 중 클라이언트에는 500, 인스턴스 내부 
 
 AI, PL
 
-### 개념 학습 정리(3차 개선안)
+### 의사결정 정리 - RAG 채택 배경
 
-- Pretrained Model만으로는 모델의 파라메트릭 지식과 실제 추론 시점에 필요한 지식 사이 간극을 메울 수 없습니다. RAG 프레임워크는 일반 지식과 특수 지식 사이 간극 문제(이하, 간극 문제)를 해결하기 위해 등장했습니다.
+**문제 상황**
 
-- 간극 문제를 해결하는 방법은 이론 상 아래 3가지 방법이 더 있으나, 기업의 비용 편익 관점에서 한계를 가집니다. 다른 대안이 없다면 RAG 프레임워크는 간극 문제를 해결할 수 있는 최적의 방법입니다.
-  - Pretraining from Scratch: 소수의 글로벌 Foundation AI 기업을 제외한 대부분 회사는 From Scratch Model이 없으므로, 다시 재학습은 비현실적인 수단입니다.
-  - Fine-Tuning: 설령 From Scratch Model이 있어도, 기본적으로 전체 파인튜닝은 상당한 비용이 듭니다. 따라서 항상 합리적인 선택일 수 없습니다. (방식에 따라 편차는 존재)
-  - Prompt 직접 삽입: 단기적으로 특수 데이터 전체를 요청마다 프롬프트에 입력해야 해서 토큰이 낭비되고, 장기적으로 문서 양이 많아지면 컨텍스트 길이 제한(context length limit)을 초과하여, 답변 가능한 상황임에도 이론상 모델의 응답 성능이 떨어집니다.
+Pretrained Model만으로는 모델의 파라메트릭 지식과 실제 추론 시점에 필요한 지식 사이 간극을 메울 수 없음. 특수 데이터(최신, 비공개, 조직 내부 데이터 등)를 답변에 반영해야 하는 간극 문제를 해결할 방법이 필요함.
 
-- RAG 파이프라인은 데이터(Data), 검색기(Retriever), LLM이라는 세 핵심 구성요소가 유연한 아키텍처 설계를 지원합니다. 이 유연성 덕분에 현재는 기존 Pretrained Model을 그대로 활용하면서, 사내 Foundation Model이 구축되더라도 LLM 구성요소만 교체하여 전환할 수 있습니다. 다른 해결책 대비 현실적인 대안입니다.
-  - 이미 존재하는 Pretrained Model을 사용하기 때문에, From Scratch Model이 없어도 AI 서비스를 개발 및 운영할 수 있으므로 현실적인 해법입니다.
-  - 만약 From Scratch Model가 있더라도, 자체 서버와 검색기를 활용해 모델의 가중치를 직접 수정하지 않아도 되어 비용이 많이 소모되지 않는 방법으로 합리적인 선택입니다.
-  - 검색기를 통해 필요한 부분만 선별적으로 검색하면, 토큰 낭비를 줄이고, 모델의 응답 성능을 유지할 수 있습니다.
+**고려한 옵션**
 
-- 원 논문에 따르면 RAG로 얻을 수 있는 2가지 장점을 Updatability(갱신 가능성), Provenance(출처 추적)을 가진다고 언급합니다.
-  - Updatability가 있으므로, 회사에게 각종 경제적 비용 절감 효과(토큰 사용량 감소 등)를 제공할 수 있음.
-  - Provenance가 있으므로, 유저에게 정확하고 검증된 정보를 제공할 수 있음.
+- Pretraining from Scratch: 소수의 글로벌 Foundation AI 기업을 제외한 대부분 회사는 From Scratch Model이 없으므로, 재학습은 비현실적인 수단임.
+- Fine-Tuning: 설령 From Scratch Model이 있어도, 기본적으로 전체 파인튜닝은 상당한 비용이 듦. 따라서 항상 합리적인 선택일 수 없음(방식에 따라 편차는 존재).
+- Prompt 직접 삽입: 단기적으로 특수 데이터 전체를 요청마다 프롬프트에 입력해야 해서 토큰이 낭비되고, 장기적으로 문서 양이 많아지면 컨텍스트 길이 제한(context length limit)을 초과하여, 답변 가능한 상황임에도 이론상 모델의 응답 성능이 떨어짐.
+- RAG: 데이터(Data), 검색기(Retriever), LLM이라는 세 핵심 구성요소가 유연한 아키텍처 설계를 지원함.
+  - 이미 존재하는 Pretrained Model을 사용하기 때문에, From Scratch Model이 없어도 AI 서비스를 개발 및 운영할 수 있으므로 현실적인 해법임.
+  - 만약 From Scratch Model가 있더라도, 자체 서버와 검색기를 활용해 모델의 가중치를 직접 수정하지 않아도 되어 비용이 많이 소모되지 않는 방법으로 합리적인 선택임.
+  - 검색기를 통해 필요한 부분만 선별적으로 검색하면, 토큰 낭비를 줄이고, 모델의 응답 성능을 유지할 수 있음.
 
-- 참고 자료
-  - [원 논문, Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Lewis et al., 2020](https://arxiv.org/pdf/2005.11401)
-  - [NVIDIA - What is Retrieval-Augmented-Generation?](https://blogs.nvidia.com/blog/what-is-retrieval-augmented-generation/)
+**결정 및 이유**
+
+RAG를 채택함. 이 유연성 덕분에 현재는 기존 Pretrained Model을 그대로 활용하면서, 사내 Foundation Model이 구축되더라도 LLM 구성요소만 교체하여 전환할 수 있음. 다른 해결책 대비 현실적인 대안임.
+
+원 논문에 따르면 RAG로 얻을 수 있는 2가지 장점을 Updatability(갱신 가능성), Provenance(출처 추적)을 가진다고 언급함.
+
+- Updatability가 있으므로, 회사에게 각종 경제적 비용 절감 효과(토큰 사용량 감소 등)를 제공할 수 있음.
+- Provenance가 있으므로, 유저에게 정확하고 검증된 정보를 제공할 수 있음.
+
+**참고 자료**
+
+- [원 논문, Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Lewis et al., 2020](https://arxiv.org/pdf/2005.11401)
+- [NVIDIA - What is Retrieval-Augmented-Generation?](https://blogs.nvidia.com/blog/what-is-retrieval-augmented-generation/)
