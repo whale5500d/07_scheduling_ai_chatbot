@@ -229,3 +229,24 @@ LangGraph 공식 예시 확장 2단계에서 `class AgentState(TypedDict)`, `Ann
 **개념이 포함된 섹션**
 
 PL
+
+### 개념 학습 정리 - Checkpointer와 Thread를 통한 대화 연속성 확인
+
+**문제 상황**
+
+질문과 응답이 서로 다른 사람의, 서로 다른 시점 메시지로 온다는 실제 서비스 컨셉에서, 이전 턴의 `pending_question`을 다음 턴에 어떻게 넘겨줄지 구조 설계가 필요했음.
+
+**부족한 개념**
+
+LangGraph 고급 문법의 하나인 Checkpointer, Thread는 여러 번의 독립된 `invoke()` 호출 사이에서 State를 이어줌. 그리고 하나의 대화(스레드) 범위 메모리인지 여러 대화에 걸친 메모리인지의 구분함.
+
+**알게 된 사실**
+
+- Checkpointer는 매 실행마다 State을 스냅샷으로 저장하고, Thread는 이 스냅샷을 모아서 하나의 `thread_id`로 묶음. 같은 `thread_id`로 다시 `invoke()`를 호출하면 LangGraph가 마지막 체크포인트에서 State부터 이어서 실행함.
+- LangGraph는 같은 메모리 저장도 하나의 스레드 범위 메모리(Checkpointer)와 여러 스레드에 걸친 메모리(Store)로 구분함. 현재 서비스는 하나의 대화창 안에서의 연속성이 필요하므로 Checkpointer가 적절함.
+- `graph.compile(checkpointer=checkpointer)`로 MemorySaver를 연결하고, 같은 `thread_id`로 `invoke()`를 2회 호출함. 2턴의 messages에 1턴의 HumanMessage/AIMessage가 동일한 id로 유지되어 정상 동작을 검증함.
+- 다만 그래프가 "`pending_question` 값이 있으면 `judge_response`로 가야 한다"는 조건부 라우팅이 없음. 다음 과제로 남김.
+
+**개념이 포함된 섹션**
+
+AI
