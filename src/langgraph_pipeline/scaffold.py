@@ -6,6 +6,7 @@ from langgraph.graph.message import add_messages
 
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
+    pending_question: str | None
 
 def judge_schedule(state: AgentState):
     """
@@ -16,8 +17,16 @@ def judge_schedule(state: AgentState):
     last_message = state['messages'][-1]
     is_question = "?" in last_message.content
 
-    answer = "일정 질문으로 판단됩니다." if is_question else "일정 질문이 아닙니다."
-    return {"messages": [AIMessage(content=answer)]}
+    if is_question:
+        return {
+            "messages": [AIMessage(content="일정 질문 O")],
+            "pending_question": last_message.content
+        }
+
+    return {
+        "messages": [AIMessage(content="일정 질문 X")],
+        "pending_question": None
+    }
 
 graph = StateGraph(AgentState)
 graph.add_node(judge_schedule)
@@ -25,7 +34,10 @@ graph.add_edge(START, "judge_schedule")
 graph.add_edge("judge_schedule", END)
 graph = graph.compile()
 
-result = graph.invoke({"messages": [HumanMessage(content="내일 산책 할래?")]})
+result = graph.invoke({
+        "messages": [HumanMessage(content="내일 산책 할래?")],
+        "pending_question": None
+    })
 print(result)
 
 # {'messages': [
