@@ -1,10 +1,16 @@
-from langgraph.graph import StateGraph, MessagesState, START, END
-from langchain_core.messages import HumanMessage, AIMessage
+from typing import Annotated, TypedDict
 
-def mock_llm(state: MessagesState):
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.message import add_messages
+
+class AgentState(TypedDict):
+    messages: Annotated[list[BaseMessage], add_messages]
+
+def mock_llm(state: AgentState):
     return {"messages": [AIMessage(content="hello world")]}
 
-graph = StateGraph(MessagesState)
+graph = StateGraph(AgentState)
 graph.add_node(mock_llm)
 graph.add_edge(START, "mock_llm")
 graph.add_edge("mock_llm", END)
