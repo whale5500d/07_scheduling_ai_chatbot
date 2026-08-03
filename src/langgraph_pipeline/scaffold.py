@@ -1,6 +1,8 @@
 from typing import Annotated, TypedDict
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.runnables import RunnableConfig
+from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 
@@ -37,28 +39,71 @@ graph.add_edge(START, "judge_schedule")
 graph.add_edge("judge_schedule", END)
 
 # 3. create graph
-graph = graph.compile()
+checkpointer = MemorySaver()
+graph = graph.compile(checkpointer=checkpointer)
 
 # 4. run graph
-result = graph.invoke({
+config: RunnableConfig = {"configurable": {"thread_id": "test-thread-1"}}
+
+turn1 = graph.invoke({
         "messages": [HumanMessage(content="내일 산책 할래?")],
         "pending_question": None
-    })
-print(result)
+    }, config=config)
+print("1턴 결과:", turn1)
 
-# {'messages': [
-#         HumanMessage(
-#                 content='hi!',
-#                 additional_kwargs={},
-#                 response_metadata={},
-#                 id='58178f5d-bdf8-4b2f-96dd-c45c1bd55ada'
-#             ),
-#         AIMessage(
-#                 content='hello world',
-#                 additional_kwargs={},
-#                 response_metadata={},
-#                 id='547e6850-8f6c-42aa-a5bc-c98f70057919',
-#                 tool_calls=[],
-#                 invalid_tool_calls=[]
-#             )
-# ]}
+turn2 = graph.invoke({
+        "messages": [HumanMessage(content="응 좋아")],
+        "pending_question": None
+    }, config=config)
+print("2턴 결과:", turn2)
+
+# 1턴 결과: {'messages': [
+#       HumanMessage(
+#           content='내일 산책 할래?', 
+#           additional_kwargs={},
+#           response_metadata={},
+#           id='735552f0-2b33-48c3-8c65-d8ff72973fa1'
+#       ),
+#       AIMessage(
+#           content='일정 질문 O',
+#           additional_kwargs={},
+#           response_metadata={},
+#           id='8de75594-4fae-4311-8311-ddec8d7e7c2d',
+#           tool_calls=[],
+#           invalid_tool_calls=[]
+#       )
+#   ],
+#   'pending_question': '내일 산책 할래?'
+# }
+# 2턴 결과: {'messages': [
+#     HumanMessage(
+#         content='내일 산책 할래?',
+#         additional_kwargs={},
+#         response_metadata={},
+#         id='735552f0-2b33-48c3-8c65-d8ff72973fa1'
+#     ),
+#     AIMessage(
+#         content='일정 질문 O',
+#         additional_kwargs={},
+#         response_metadata={},
+#         id='8de75594-4fae-4311-8311-ddec8d7e7c2d',
+#         tool_calls=[],
+#         invalid_tool_calls=[]
+#     ),
+#     HumanMessage(
+#         content='응 좋아',
+#         additional_kwargs={},
+#         response_metadata={},
+#         id='7fee0f9c-4f21-4860-b364-304b4db311a0'
+#     ),
+#     AIMessage(
+#         content='일정 질문 X',
+#         additional_kwargs={},
+#         response_metadata={},
+#         id='73200465-8d35-4b51-8863-d39600c34816',
+#         tool_calls=[],
+#         invalid_tool_calls=[]
+#     )
+#   ],
+#   'pending_question': None
+# }
