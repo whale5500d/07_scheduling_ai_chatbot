@@ -148,3 +148,42 @@ LangGraph 공식 권장 폴더 구조의 존재 여부, LangGraph와 LangChain�
 **개념이 포함된 섹션**
 
 AI
+
+### 의사결정 정리 - 기획안 v2 확정(RAG 적용 및 연속성 축 제거)
+
+**문제 상황**
+
+기존 todo.md는 규칙 기반 분류로만 설계되어 있어, 질문 표현(할래?/허쉴?/ㅎㅅ? 등 어미 변형)이나 애매한 응답(긍정/부정 키워드 목록 밖의 응답)처럼 규칙만으로는 판정이 불확실한 회색 지대를 처리할 방법이 없었음. 또한 대화 연속성을 판단할 필요가 있는데, 이를 어떤 기준으로 판단할지 미정이었음.
+
+**고려한 옵션**
+
+- 회색 지대 처리: 규칙을 계속 추가하는 방법 vs 과거 판정 사례를 검색해 LLM 판단 근거로 제공하는 RAG 방법. 사례집을 검색 대상으로 삼으면, 판정 결과가 누적될 때마다 자동으로 검색 대상이 갱신되어 별도 문서 수정 없이 지속적으로 대응 가능함.
+- 연속성 판단: reducer(`add_messages`)를 기준으로 매번 messages 리스트 전체를 훑어 미확정 질문을 찾는 방법 vs 별도 State 변수(`pending_question`)로 관리하는 방법. reducer 방식은 대화가 길어질수록 처리 비용이 증가함.
+
+**결정 및 이유**
+
+질문 표현 판정과 애매한 응답 판정에 사례집 기반 RAG를 추가하기로 결정함. 이에 따라 평가 지표 체계도 실행 순서(1차 일정 여부 판단 → 3차 응답 판단 → 2차 날짜 판단 → 4차 RDB 저장) 기준으로 재배치함. RAG가 추가된 두 지점(질문 표현/애매한 응답 판정)은 RAGAS(문맥 정밀도, 문맥 재현율, 충실도, 답변 관련성)로, 나머지 최종 판단은 기존 작업 품질 지표(classification metrics, exact match, success rate)로 각각 평가함.
+
+대화 연속성은 별도 축으로 두지 않고, State의 `pending_question` 필드로 흡수하기로 결정함. 처리 비용 측면에서 별도 변수 관리가 reducer 전체 탐색보다 적절하다고 판단함. 다만 `pending_question`이 응답 없이 잔존할 수 있으므로, 유효 기간(TTL) 산정 기준은 추후 논의 사항으로 남김.
+
+### 개념 학습 정리 - LangGraph 공식 예시를 통한 StateGraph 동작 원리 이해
+
+**문제 상황**
+
+기획안을 LangGraph 신규 노드/도구로 설계하려 했으나, 기존 `graph.py`/`tools.py` 구조가 이해되지 않은 채 확장하려다 막힘. LangGraph 공식 최소 예시를 직접 실행하며 기초 동작 원리부터 확인함.
+
+**부족한 개념**
+
+`StateGraph` 선언 시점과 실행(invoke) 시점의 차이, State의 스키마와 실제 값의 구분, reducer가 노드 반환값을 State에 병합하는 방식.
+
+**알게 된 사실**
+
+- `graph = StateGraph(MessagesState)` 시점에는 State의 스키마(타입)만 등록되며, 실제 State 값은 아직 없음. `invoke()`가 호출되면 그때 초기 State 값이 생성되고, 실행되는 동안 노드 사이를 오가며 값이 갱신됨. `MessagesState`(Prebuilt)와 `AgentState`(직접 정의)는 이 State의 스키마를 표현하는 방식의 차이일 뿐, 동작 원리는 동일함.
+- `add_node(mock_llm)`은 함수를 등록만 할 뿐 즉시 실행하지 않음. `invoke()` 실행 중 해당 노드에 도달했을 때 비로소 함수가 실행됨.
+- `add_edge(START, "mock_llm")`, `add_edge("mock_llm", END)`는 각각 시작점→노드, 노드→도착점을 연결하는 고정 엣지임.
+- `invoke({"messages": [HumanMessage(content="hi!")]})`에서 넘긴 `HumanMessage`는 초기 State 값이며, 그래프 실행 전 State의 시작점으로 먼저 리스트에 들어감. 이후 `mock_llm` 노드가 실행되어 반환한 `AIMessage`가 `add_messages` reducer에 의해 append 방식으로 누적됨(reducer는 값을 축소하는 것이 아니라 병합 규칙을 정의하는 함수).
+- `invoke()`의 반환값은 자동으로 출력되지 않으므로, 결과를 확인하려면 별도로 `print()`가 필요함.
+
+**개념이 포함된 섹션**
+
+AI
