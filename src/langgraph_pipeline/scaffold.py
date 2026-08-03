@@ -54,6 +54,19 @@ def judge_date(state: AgentState):
 
     return {"messages": [AIMessage(content=answer)]}
 
+def save_rdb(state: AgentState):
+    """일정을 RDB에 저장하는 최소 규칙 버전. 실제 POST 요청은 이후
+    단계에서 추가 예정."""
+    question = state["pending_question"]
+
+    if question:
+        answer = f"저장 완료: '{question}'"
+    else:
+        answer = "저장할 일정이 없습니다"
+
+    return {"messages": [AIMessage(content=answer)]}
+
+
 # print
 def print_result(label: str, result: dict):
     print(f"\n[{label}]")
@@ -72,10 +85,12 @@ graph = StateGraph(AgentState)
 graph.add_node(judge_schedule)
 graph.add_node(judge_response)
 graph.add_node(judge_date)
+graph.add_node(save_rdb)
 graph.add_edge(START, "judge_schedule")
 graph.add_edge("judge_schedule", "judge_response")
 graph.add_edge("judge_response", "judge_date")
-graph.add_edge("judge_date", END)
+graph.add_edge("judge_date", "save_rdb")
+graph.add_edge("save_rdb", END)
 
 # 3. create graph
 checkpointer = MemorySaver()
