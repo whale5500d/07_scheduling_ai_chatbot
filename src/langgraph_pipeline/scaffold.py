@@ -42,6 +42,19 @@ def judge_response(state: AgentState):
 
     return { "messages": [AIMessage(content=answer)]}
 
+def judge_date(state: AgentState):
+    """pending_question에서 상대적 날짜 표현을 절대 날짜로 정규화하는
+    최소 규칙 버전. 사례집 기반 정교화는 이후 단계에서 추가 예정."""
+    question = state["pending_question"]
+
+    if question and "내일" in question:
+        answer = "날짜: 내일로 판정됨 (정규화 로직은 추후 정교화 예정)"
+    else:
+        answer = "날짜 표현을 찾을 수 없습니다"
+
+    return {"messages": [AIMessage(content=answer)]}
+
+# print
 def print_result(label: str, result: dict):
     print(f"\n[{label}]")
     for m in result["messages"]:
@@ -58,9 +71,11 @@ graph = StateGraph(AgentState)
 # 2. design workflow
 graph.add_node(judge_schedule)
 graph.add_node(judge_response)
+graph.add_node(judge_date)
 graph.add_edge(START, "judge_schedule")
 graph.add_edge("judge_schedule", "judge_response")
-graph.add_edge("judge_response", END)
+graph.add_edge("judge_response", "judge_date")
+graph.add_edge("judge_date", END)
 
 # 3. create graph
 checkpointer = MemorySaver()
