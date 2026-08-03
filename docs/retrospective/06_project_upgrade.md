@@ -187,3 +187,45 @@ AI
 **개념이 포함된 섹션**
 
 AI
+
+### 에러 원인 규명 - langgraph_pipeline 파일명과 라이브러리명 충돌로 인한 ModuleNotFoundError
+
+**문제 상황**
+
+LangGraph 공식 예시 확장 2단계(`MessagesState` → `AgentState` 교체) 진행 중, 새로 만든 파일명을 `langgraph.py`로 지정함. `uv run python -m langgraph_pipeline.langgraph` 실행 시 다음 에러 발생.
+
+```
+ModuleNotFoundError: No module named 'langgraph.graph'; 'langgraph' is not a package
+```
+
+**원인 분석**
+
+파일 내부의 `from langgraph.graph import StateGraph, START, END` 구문이, 설치된 실제 `langgraph` 패키지가 아니라 방금 만든 `langgraph.py` 파일 자기 자신을 가리키게 됨. `-m` 실행 시 해당 파일이 위치한 디렉토리가 `sys.path`에 포함되면서 발생한 셀프 셰도잉(self-shadowing)이 원인임.
+
+**결정 및 대응**
+
+파일명을 라이브러리명과 겹치지 않는 `scaffold.py`로 변경함. "점진적으로 실제 구조로 발전시킬 발판"이라는 의미를 담아 명명함.
+
+### 개념 학습 정리 - TypedDict와 Annotated의 역할
+
+**문제 상황**
+
+LangGraph 공식 예시 확장 2단계에서 `class AgentState(TypedDict)`, `Annotated[list[BaseMessage], add_messages]` 문법을 사용하고 있었으나, 각 구성요소가 정확히 무엇을 하는지 이해하지 못한 채 사용함.
+
+**부족한 개념**
+
+`TypedDict`가 딕셔너리에 타입 정보를 붙이는 방식, `Annotated`가 타입에 메타데이터를 추가하는 방식, 그리고 이 메타데이터를 LangGraph가 reducer로 해석하는 과정.
+
+**알게 된 사실**
+
+- `typing`: 파이썬의 타입 시스템을 갖는 표준 모듈입니다.
+- `Annotated[타입, 메타데이터]`: 기본 타입에 메타데이터를 추가하는 표준 문법입니다.
+- `TypedDict`: 정적 타입 검사기(pyright 등)가 타입을 파악할 수 있도록, 딕셔너리의 키와 값의 타입을 미리 선언하는 문법입니다.
+- `Annotated[list[BaseMessage], add_messages]`
+  1. "BaseMessage 타입으로 구성된 리스트"가 실제 타입(필드)이라는 의미입니다.
+  2. "add_messages"는 함수입니다. LangGraph에서 가져온 함수이므로, LangGraph가 이 메타 데이터를 실행할 때 읽습니다.
+  3. AgentState는 "해당 필드를 갱신할 때마다 add_messages 함수를 reducer로 실행하라"는 의미가 됩니다.
+
+**개념이 포함된 섹션**
+
+PL
