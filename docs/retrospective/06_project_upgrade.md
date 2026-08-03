@@ -245,7 +245,8 @@ LangGraph 고급 문법의 하나인 Checkpointer, Thread는 여러 번의 독�
 - Checkpointer는 매 실행마다 State을 스냅샷으로 저장하고, Thread는 이 스냅샷을 모아서 하나의 `thread_id`로 묶음. 같은 `thread_id`로 다시 `invoke()`를 호출하면 LangGraph가 마지막 체크포인트에서 State부터 이어서 실행함.
 - LangGraph는 같은 메모리 저장도 하나의 스레드 범위 메모리(Checkpointer)와 여러 스레드에 걸친 메모리(Store)로 구분함. 현재 서비스는 하나의 대화창 안에서의 연속성이 필요하므로 Checkpointer가 적절함.
 - `graph.compile(checkpointer=checkpointer)`로 MemorySaver를 연결하고, 같은 `thread_id`로 `invoke()`를 2회 호출함. 2턴의 messages에 1턴의 HumanMessage/AIMessage가 동일한 id로 유지되어 정상 동작을 검증함.
-- 다만 그래프가 "`pending_question` 값이 있으면 `judge_response`로 가야 한다"는 조건부 라우팅이 없음. 다음 과제로 남김.
+- 다만 그래프가 "`pending_question` 값이 있으면 `judge_response`로 가야 한다"는 조건부 라우팅이 없음. 다음 과제로 남김. (현재는 `pending_question`이 None으로 명시되어 있으므로, NotRequired를 사용하여 에러 상황을 들어내도록 전환 필요)
+- 다만 그래프가 "`pending_question` 값이 있으면 `judge_response`로 가야 한다"는 조건부 라우팅이 없음. 다음 과제로 남김. (추가로, `invoke()` 호출 시 입력값으로 명시한 `pending_question: None`이 노드 실행 전에 먼저 값을 덮어씀. `NotRequired`로 필드를 선택적으로 전환해, 추후 덮어쓰지 않도록 개선 필요)
 
 **개념이 포함된 섹션**
 
