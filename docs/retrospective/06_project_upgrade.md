@@ -293,3 +293,21 @@ PL
 **개념이 포함된 섹션**
 
 AI
+
+### 에러 원인 규명 - NotRequired 전환 후, pending_question이 유지되지 않는 문제
+
+**문제 상황**
+
+"진행 중인 질문(`pending_question`)"을 선택값(`NotRequired`)으로 설정하고 테스트를 실행함. 여전히 고정된 단일 워크플로우로 2턴에 입력받은 "응답"은 `judge_schedule` 함수를 타기 때문에 "진행 중인 질문"이 `None`이 됨.
+
+**원인 분석**
+
+`NotRequired` 전환은 `invoke()` 입력값이 Checkpointer가 복원한 `pending_question`을 덮어쓰지 않도록 해결함. 다만, 그래프 구조 자체는 여전히 고정되어 있어서, 2턴에서도 `judge_schedule`이 무조건 다시 실행됨. `judge_schedule`은 사용자의 응답("응 좋아")에 물음표가 없으므로 일정 질문이 아니라고 판정하고, `pending_question`을 자체적으로 `None`으로 덮어씀.
+
+**결정 및 대응**
+
+START 노드와 judge_schedule 노드 간 실행 사이에 조건부 라우팅을 추가하여 문제를 해결함. `pending_question`이 이미 값을 가지고 있으면 `judge_schedule`을 건너뛰고 바로 `judge_response`로 라우팅되도록 구현함.
+
+**인사이트**
+
+디버그 출력으로 각 시점의 값을 직접 찍어 원인을 하나씩 분리해서 검증하는 것이 중요함.
