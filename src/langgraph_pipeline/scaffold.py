@@ -49,7 +49,7 @@ def judge_response(state: AgentState):
 def judge_date(state: AgentState):
     """pending_question에서 상대적 날짜 표현을 절대 날짜로 정규화하는
     최소 규칙 버전. 사례집 기반 정교화는 이후 단계에서 추가 예정."""
-    question = state["pending_question"]
+    question = state.get("pending_question")
 
     if question and "내일" in question:
         answer = "날짜: 내일로 판정됨 (정규화 로직은 추후 정교화 예정)"
@@ -61,7 +61,7 @@ def judge_date(state: AgentState):
 def save_rdb(state: AgentState):
     """일정을 RDB에 저장하는 최소 규칙 버전. 실제 POST 요청은 이후
     단계에서 추가 예정."""
-    question = state["pending_question"]
+    question = state.get("pending_question")
 
     if question:
         answer = f"저장 완료: '{question}'"
