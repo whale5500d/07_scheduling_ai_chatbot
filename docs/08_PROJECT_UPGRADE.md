@@ -50,3 +50,13 @@ print(result)
 4. "일정 판단", "응답 판단", "날짜 판단", "서버 저장" 노드 및 엣지 추가
 5. 개발 계획 상 질문/응답 query는 순서가 있음. 질문과 응답 사이 State는 유지되어야 함. 상태의 영속성(Persistence, 공식 문서 상 대화 연속성(Conversation Continuity)라 표현)를 위해 Thread, Checkpoint(er)를 적용함. 서로 다른 query가 요청하더라도 State가 자동 복원(restore)됨을 확인.
 6. 고정된 단일 파이프라인으로 설계되어 있음. 호출 시 모든 노드가 실행되므로 장기적으로 연산 낭비가 예상됨. 계획 상 필요한 노드만 사용되도록 조건부 라우팅 처리가 필요함.
+
+## 딥다이브 주제
+
+- 동적 링킹(dynamic linking)
+- 메타클래스(`__call__`) 동작 원리
+- 파국적 망각(catastrophic forgetting)
+- 포트/어댑터 vs 전략 패턴의 격리 강제성 차이
+- uv(Rust) vs Poetry(Python) 속도 차이
+- LangGraph Checkpointer 구현 종류별 차이(MemorySaver/SqliteSaver/PostgresSaver)
+- python -m 모듈 실행 vs 스크립트 직접 실행의 차이
