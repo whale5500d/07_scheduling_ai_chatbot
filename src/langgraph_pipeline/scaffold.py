@@ -1,3 +1,4 @@
+from enum import StrEnum
 from typing import Annotated, TypedDict, NotRequired
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
@@ -34,13 +35,16 @@ def judge_response(state: AgentState):
     negative_keywords = ["아니", "싫어", "별로", "그러지 말자", "반대"]
 
     if any(k in text for k in positive_keywords):
-        answer = "긍정 응답"
+        answer, verdict = "긍정 응답", ResponseVerdict.POSITIVE
     elif any(k in text for k in negative_keywords):
-        answer = "부정 응답"
+        answer, verdict = "부정 응답", ResponseVerdict.NEGATIVE
     else:
-        answer = "응답 판정 불가"
+        answer, verdict = "응답 판정 불가", ResponseVerdict.UNCLEAR
 
-    return { "messages": [AIMessage(content=answer)]}
+    return {
+            "messages": [AIMessage(content=answer)],
+            "response_verdict": verdict
+        }
 
 def judge_date(state: AgentState):
     """pending_question에서 상대적 날짜 표현을 절대 날짜로 정규화하는
@@ -64,12 +68,20 @@ def save_rdb(state: AgentState):
     else:
         answer = "저장할 일정이 없습니다"
 
-    return {"messages": [AIMessage(content=answer)]}
+    return {
+        "messages": [AIMessage(content=answer)],
+        "pending_question": None,
+        "response_verdict": None,
+    }
 
 def route_from_start(state: AgentState):
-    decision = "judge_response" if state.get("pending_question") else "judge_schedule"
-    print(f"[routing] pending_question={state.get("pending_question")} -> {decision}")
-    return decision
+    return "judge_response" if state.get("pending_question") else "judge_schedule"
+
+def route_after_schedule(state: AgentState):
+    return "judge_response" if state.get("pending_question") else END
+
+def route_after_response(state: AgentState):
+    return "judge_date" if state.get("response_verdict") == ResponseVerdict.POSITIVE else END
 
 # print
 def print_result(label: str, result: dict):
@@ -77,11 +89,18 @@ def print_result(label: str, result: dict):
     for m in result["messages"]:
         print(f"  {type(m).__name__}: {m.content}")
     print(f"  pending_question: {result['pending_question']}")
+    print("===================================================")
 
 # 1. declarate state
+class ResponseVerdict(StrEnum):
+    POSITIVE = "positive"
+    NEGATIVE = 'negative'
+    UNCLEAR = 'unclear' # 응답이 불분명한 상태, 추후 RAG 사용 시점으로 사용
+
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     pending_question: NotRequired[str | None]
+    response_verdict: NotRequired[ResponseVerdict | None]
 
 graph = StateGraph(AgentState)
 
@@ -90,10 +109,9 @@ graph.add_node(judge_schedule)
 graph.add_node(judge_response)
 graph.add_node(judge_date)
 graph.add_node(save_rdb)
-# graph.add_edge(START, "judge_schedule")
 graph.add_conditional_edges(START, route_from_start, {"judge_schedule": "judge_schedule", "judge_response": "judge_response"},)
-graph.add_edge("judge_schedule", "judge_response")
-graph.add_edge("judge_response", "judge_date")
+graph.add_conditional_edges("judge_schedule", route_after_schedule, {"judge_response": "judge_response", END: END})
+graph.add_conditional_edges("judge_response", route_after_response, {"judge_date": "judge_date", END: END})
 graph.add_edge("judge_date", "save_rdb")
 graph.add_edge("save_rdb", END)
 
@@ -114,6 +132,11 @@ turn2 = graph.invoke({
         "messages": [HumanMessage(content="응 좋아")],
     }, config=config)
 print_result("2턴", turn2)
+
+turn3 = graph.invoke({
+        "messages": [HumanMessage(content="모레 영화 볼래?")],
+    }, config=config)
+print_result("3턴", turn3)
 
 # 1턴 결과: {'messages': [
 #       HumanMessage(
