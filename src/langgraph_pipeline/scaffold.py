@@ -91,7 +91,7 @@ def print_result(label: str, result: dict):
     print(f"  pending_question: {result['pending_question']}")
     print("===================================================")
 
-# 1. declarate state
+# 1. declare state
 class ResponseVerdict(StrEnum):
     POSITIVE = "positive"
     NEGATIVE = 'negative'
@@ -137,54 +137,3 @@ turn3 = graph.invoke({
         "messages": [HumanMessage(content="모레 영화 볼래?")],
     }, config=config)
 print_result("3턴", turn3)
-
-# 1턴 결과: {'messages': [
-#       HumanMessage(
-#           content='내일 산책 할래?', 
-#           additional_kwargs={},
-#           response_metadata={},
-#           id='735552f0-2b33-48c3-8c65-d8ff72973fa1'
-#       ),
-#       AIMessage(
-#           content='일정 질문 O',
-#           additional_kwargs={},
-#           response_metadata={},
-#           id='8de75594-4fae-4311-8311-ddec8d7e7c2d',
-#           tool_calls=[],
-#           invalid_tool_calls=[]
-#       )
-#   ],
-#   'pending_question': '내일 산책 할래?'
-# }
-# 2턴 결과: {'messages': [
-#     HumanMessage(
-#         content='내일 산책 할래?',
-#         additional_kwargs={},
-#         response_metadata={},
-#         id='735552f0-2b33-48c3-8c65-d8ff72973fa1'
-#     ),
-#     AIMessage(
-#         content='일정 질문 O',
-#         additional_kwargs={},
-#         response_metadata={},
-#         id='8de75594-4fae-4311-8311-ddec8d7e7c2d',
-#         tool_calls=[],
-#         invalid_tool_calls=[]
-#     ),
-#     HumanMessage(
-#         content='응 좋아',
-#         additional_kwargs={},
-#         response_metadata={},
-#         id='7fee0f9c-4f21-4860-b364-304b4db311a0'
-#     ),
-#     AIMessage(
-#         content='일정 질문 X',
-#         additional_kwargs={},
-#         response_metadata={},
-#         id='73200465-8d35-4b51-8863-d39600c34816',
-#         tool_calls=[],
-#         invalid_tool_calls=[]
-#     )
-#   ],
-#   'pending_question': None
-# }
