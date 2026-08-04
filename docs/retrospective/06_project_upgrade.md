@@ -302,12 +302,32 @@ AI
 
 **원인 분석**
 
-`NotRequired` 전환은 `invoke()` 입력값이 Checkpointer가 복원한 `pending_question`을 덮어쓰지 않도록 해결함. 다만, 그래프 구조 자체는 여전히 고정되어 있어서, 2턴에서도 `judge_schedule`이 무조건 다시 실행됨. `judge_schedule`은 사용자의 응답("응 좋아")에 물음표가 없으므로 일정 질문이 아니라고 판정하고, `pending_question`을 자체적으로 `None`으로 덮어씀.
+`NotRequired` 전환했어도, 그래프 구조 자체는 여전히 고정되어 있어서, 2턴에서도 `judge_schedule`이 무조건 다시 실행됨. `judge_schedule`은 사용자의 응답("응 좋아")에 물음표가 없으므로 일정 질문이 아니라고 판정하고, `pending_question`을 자체적으로 `None`으로 덮어씀.
 
 **결정 및 대응**
 
-START 노드와 judge_schedule 노드 간 실행 사이에 조건부 라우팅을 추가하여 문제를 해결함. `pending_question`이 이미 값을 가지고 있으면 `judge_schedule`을 건너뛰고 바로 `judge_response`로 라우팅되도록 구현함.
+START 노드와 judge_schedule 노드 간 실행 사이에 "조건부 라우팅"을 추가하여 문제를 해결함. `pending_question`이 이미 값을 가지고 있으면 `judge_schedule`을 건너뛰고 바로 `judge_response`로 라우팅되도록 구현함.
 
 **인사이트**
 
 디버그 출력으로 각 시점의 값을 직접 찍어 원인을 하나씩 분리해서 검증하는 것이 중요함.
+
+### 의사결정 정리 - 조기 종료 판단 변수 설계
+
+**문제 상황**
+
+기획안에 따라 조기 종료를 위한 조건부 라우팅을 추가 확장함. 조기 종료 판단 근거를 어디에 둘지 결정이 필요했음.
+
+**고려한 옵션**
+
+- (기존) `AIMessage.content` 또는 `pending_question`을 기준으로 조기 종료 처리.
+- (신규 1) `additional_kwargs`에 값을 추가하여 해당 필드 기준으로 조기 종료 처리.
+- (신규 2) 별도 State 필드를 추가하여 해당 필드 기준으로 조기 종료 처리.
+
+**결정 및 이유**
+
+별도 State 필드(`response_verdict`)를 생성하는 것으로 선택함.
+
+- (기존 방식의 한계) 사람이 읽는 결과 표시용이라, 문구가 정책에 따라 수정되면 이를 파싱해 판단하던 로직이 조용히 깨질 수 있어 에러 추적이 어려움.
+- (신규 1 방식의 한계) 값이 암시적이라 `AgentState` 정의에 나타나지 않음. `AgentState`만 보고는 분기 처리 여부를 확인하기 어려움. 또한 이미 `pending_question`을 별도 State 필드로 저장하기로 한 것과도 저장 방식이 어긋남.
+- (신규 2 방식 보완) 추가로 타입 범위를 3가지 값(`POSITIVE`/`NEGATIVE`/`UNCLEAR`)으로 좁힘. 오타, 미정의된 값을 타입 체커가 사전에 제외하도록 보완함.
