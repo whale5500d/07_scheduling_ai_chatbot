@@ -41,3 +41,12 @@ print(result)
 5. 실행 결과
    - result는 `graph.invoke`가 실제로 실행된 후 결과가 할당됩니다.
    - `print(result)`: 결과는 messages에 리스트로 저장되어 있는 딕셔너리입니다. HumanMessage, AIMessage가 순서대로 들어있습니다. invoke 실행 과정을 돌이켜보면, 입력으로 받은 HumanMessage는 초기 State 값입니다. 그래서 먼저 리스트에 들어갑니다. 이후, 워크플로우를 타면서 node로 만들어진 mock_llm이 실행되고, AIMessage가 리스트에 append 방식으로 누적됩니다(reducer가 병합 규칙을 정의)
+
+### 작업 순서
+
+1. LangGraph 공식 문서 예시를 사용해 그래프 구조 최소 구현
+2. 커스텀 스키마(타입) 생성 및 소스 코드 레벨 LangGraph 동작 원리 설명 문서 작성
+3. "실행 중인 질문(`pending_question`)"을 스키마에 상태값으로 추가 (Default로 Required로 설정)
+4. "일정 판단", "응답 판단", "날짜 판단", "서버 저장" 노드 및 엣지 추가
+5. 개발 계획 상 질문/응답 query는 순서가 있음. 질문과 응답 사이 State는 유지되어야 함. 상태의 영속성(Persistence, 공식 문서 상 대화 연속성(Conversation Continuity)라 표현)를 위해 Thread, Checkpoint(er)를 적용함. 서로 다른 query가 요청하더라도 State가 자동 복원(restore)됨을 확인.
+6. 고정된 단일 파이프라인으로 설계되어 있음. 호출 시 모든 노드가 실행되므로 장기적으로 연산 낭비가 예상됨. 계획 상 필요한 노드만 사용되도록 조건부 라우팅 처리가 필요함.
