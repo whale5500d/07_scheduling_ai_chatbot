@@ -331,3 +331,33 @@ START 노드와 judge_schedule 노드 간 실행 사이에 "조건부 라우팅"
 - (기존 방식의 한계) 사람이 읽는 결과 표시용이라, 문구가 정책에 따라 수정되면 이를 파싱해 판단하던 로직이 조용히 깨질 수 있어 에러 추적이 어려움.
 - (신규 1 방식의 한계) 값이 암시적이라 `AgentState` 정의에 나타나지 않음. `AgentState`만 보고는 분기 처리 여부를 확인하기 어려움. 또한 이미 `pending_question`을 별도 State 필드로 저장하기로 한 것과도 저장 방식이 어긋남.
 - (신규 2 방식 보완) 추가로 타입 범위를 3가지 값(`POSITIVE`/`NEGATIVE`/`UNCLEAR`)으로 좁힘. 오타, 미정의된 값을 타입 체커가 사전에 제외하도록 보완함.
+
+### 개념 학습 정리 - msgpack 직렬화와 Insecure Deserialization
+
+**문제 상황**
+
+`ResponseVerdict`(커스텀 `StrEnum`)를 State에 저장하자, Checkpointer가 "등록되지 않은 타입을 역직렬화한다"는 msgpack 경고를 발생시킴.
+
+**부족한 개념**
+
+- 직렬화·역직렬화의 정의
+- msgpack 포맷의 기본 타입 제약
+- 커스텀 객체의 태그 기반 복원 방식
+- Insecure Deserialization(안전하지 않은 역직렬화)이라는 알려진 보안 취약점 유형과 어떻게 연결되는지.
+
+**알게 된 사실**
+
+- Checkpointer는 msgpack 포맷으로 State를 저장·복원함. msgpack은 문자열, 숫자, 배열, dict, boolean, null 등 기본 타입만 표현 가능하며, 커스텀 클래스는 LangGraph의 직렬화기(JsonPlusSerializer)가 모듈·클래스를 태그로 붙여 저장·복원함.
+- 이 복원 방식은 Insecure Deserialization(안전하지 않은 역직렬화, OWASP Top 10:2025 A08 "Software or Data Integrity Failures" 항목)으로 이어질 수 있는 위험을 내포함. 그래서 LangGraph는 허용 목록(allowlist) 방식으로 검증된 타입만 역직렬화하도록 제한함.
+- 스키마 필드 타입을 "순수 문자열/Literal" 또는 "허용 목록" 중 무엇으로 관리할지 판단하는 체크리스트를 세움(기본 타입 표현 가능 여부, 부수 효과 유무, 값의 범위, Checkpointer 백엔드, 신뢰 경계, 재사용 빈도, 정보 손실 여부).
+- `ResponseVerdict`는 체크리스트 1번(기본 타입 표현 가능)에서 이미 YES였으므로, `Literal["positive", "negative", "unclear"] | None`으로 State에 순수 문자열로 저장하고, Enum은 코드 내 값 생성·비교용으로만 유지하는 방식을 채택함.
+
+**참고 자료**
+
+- 상세 내용: [블로그 게시글 바로가기](https://whale2200d-developer.tistory.com/25)
+- https://owasp.org/www-community/vulnerabilities/Insecure_Deserialization
+- https://owasp.org/Top10/2025/
+
+**개념이 포함된 섹션**
+
+PL
