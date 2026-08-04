@@ -148,3 +148,216 @@ LangGraph 공식 권장 폴더 구조의 존재 여부, LangGraph와 LangChain�
 **개념이 포함된 섹션**
 
 AI
+
+### 의사결정 정리 - 기획안 v2 확정(RAG 적용 및 연속성 축 제거)
+
+**문제 상황**
+
+기존 todo.md는 규칙 기반 분류로만 설계되어 있어, 질문 표현(할래?/허쉴?/ㅎㅅ? 등 어미 변형)이나 애매한 응답(긍정/부정 키워드 목록 밖의 응답)처럼 규칙만으로는 판정이 불확실한 회색 지대를 처리할 방법이 없었음. 또한 대화 연속성을 판단할 필요가 있는데, 이를 어떤 기준으로 판단할지 미정이었음.
+
+**고려한 옵션**
+
+- 회색 지대 처리: 규칙을 계속 추가하는 방법 vs 과거 판정 사례를 검색해 LLM 판단 근거로 제공하는 RAG 방법. 사례집을 검색 대상으로 삼으면, 판정 결과가 누적될 때마다 자동으로 검색 대상이 갱신되어 별도 문서 수정 없이 지속적으로 대응 가능함.
+- 연속성 판단: reducer(`add_messages`)를 기준으로 매번 messages 리스트 전체를 훑어 미확정 질문을 찾는 방법 vs 별도 State 변수(`pending_question`)로 관리하는 방법. reducer 방식은 대화가 길어질수록 처리 비용이 증가함.
+
+**결정 및 이유**
+
+질문 표현 판정과 애매한 응답 판정에 사례집 기반 RAG를 추가하기로 결정함. 이에 따라 평가 지표 체계도 실행 순서(1차 일정 여부 판단 → 3차 응답 판단 → 2차 날짜 판단 → 4차 RDB 저장) 기준으로 재배치함. RAG가 추가된 두 지점(질문 표현/애매한 응답 판정)은 RAGAS(문맥 정밀도, 문맥 재현율, 충실도, 답변 관련성)로, 나머지 최종 판단은 기존 작업 품질 지표(classification metrics, exact match, success rate)로 각각 평가함.
+
+대화 연속성은 별도 축으로 두지 않고, State의 `pending_question` 필드로 흡수하기로 결정함. 처리 비용 측면에서 별도 변수 관리가 reducer 전체 탐색보다 적절하다고 판단함. 다만 `pending_question`이 응답 없이 잔존할 수 있으므로, 유효 기간(TTL) 산정 기준은 추후 논의 사항으로 남김.
+
+### 개념 학습 정리 - LangGraph 공식 예시를 통한 StateGraph 동작 원리 이해
+
+**문제 상황**
+
+기획안을 LangGraph 신규 노드/도구로 설계하려 했으나, 기존 `graph.py`/`tools.py` 구조가 이해되지 않은 채 확장하려다 막힘. LangGraph 공식 최소 예시를 직접 실행하며 기초 동작 원리부터 확인함.
+
+**부족한 개념**
+
+`StateGraph` 선언 시점과 실행(invoke) 시점의 차이, State의 스키마와 실제 값의 구분, reducer가 노드 반환값을 State에 병합하는 방식.
+
+**알게 된 사실**
+
+- `graph = StateGraph(MessagesState)` 시점에는 State의 스키마(타입)만 등록되며, 실제 State 값은 아직 없음. `invoke()`가 호출되면 그때 초기 State 값이 생성되고, 실행되는 동안 노드 사이를 오가며 값이 갱신됨. `MessagesState`(Prebuilt)와 `AgentState`(직접 정의)는 이 State의 스키마를 표현하는 방식의 차이일 뿐, 동작 원리는 동일함.
+- `add_node(mock_llm)`은 함수를 등록만 할 뿐 즉시 실행하지 않음. `invoke()` 실행 중 해당 노드에 도달했을 때 비로소 함수가 실행됨.
+- `add_edge(START, "mock_llm")`, `add_edge("mock_llm", END)`는 각각 시작점→노드, 노드→도착점을 연결하는 고정 엣지임.
+- `invoke({"messages": [HumanMessage(content="hi!")]})`에서 넘긴 `HumanMessage`는 초기 State 값이며, 그래프 실행 전 State의 시작점으로 먼저 리스트에 들어감. 이후 `mock_llm` 노드가 실행되어 반환한 `AIMessage`가 `add_messages` reducer에 의해 append 방식으로 누적됨(reducer는 값을 축소하는 것이 아니라 병합 규칙을 정의하는 함수).
+- `invoke()`의 반환값은 자동으로 출력되지 않으므로, 결과를 확인하려면 별도로 `print()`가 필요함.
+
+**개념이 포함된 섹션**
+
+AI
+
+### 에러 원인 규명 - langgraph_pipeline 파일명과 라이브러리명 충돌로 인한 ModuleNotFoundError
+
+**문제 상황**
+
+LangGraph 공식 예시 확장 2단계(`MessagesState` → `AgentState` 교체) 진행 중, 새로 만든 파일명을 `langgraph.py`로 지정함. `uv run python -m langgraph_pipeline.langgraph` 실행 시 다음 에러 발생.
+
+```
+ModuleNotFoundError: No module named 'langgraph.graph'; 'langgraph' is not a package
+```
+
+**원인 분석**
+
+파일 내부의 `from langgraph.graph import StateGraph, START, END` 구문이, 설치된 실제 `langgraph` 패키지가 아니라 방금 만든 `langgraph.py` 파일 자기 자신을 가리키게 됨. `-m` 실행 시 해당 파일이 위치한 디렉토리가 `sys.path`에 포함되면서 발생한 셀프 셰도잉(self-shadowing)이 원인임.
+
+**결정 및 대응**
+
+파일명을 라이브러리명과 겹치지 않는 `scaffold.py`로 변경함. "점진적으로 실제 구조로 발전시킬 발판"이라는 의미를 담아 명명함.
+
+### 개념 학습 정리 - TypedDict와 Annotated의 역할
+
+**문제 상황**
+
+LangGraph 공식 예시 확장 2단계에서 `class AgentState(TypedDict)`, `Annotated[list[BaseMessage], add_messages]` 문법을 사용하고 있었으나, 각 구성요소가 정확히 무엇을 하는지 이해하지 못한 채 사용함.
+
+**부족한 개념**
+
+`TypedDict`가 딕셔너리에 타입 정보를 붙이는 방식, `Annotated`가 타입에 메타데이터를 추가하는 방식, 그리고 이 메타데이터를 LangGraph가 reducer로 해석하는 과정.
+
+**알게 된 사실**
+
+- `typing`: 파이썬의 타입 시스템을 갖는 표준 모듈입니다.
+- `Annotated[타입, 메타데이터]`: 기본 타입에 메타데이터를 추가하는 표준 문법입니다.
+- `TypedDict`: 정적 타입 검사기(pyright 등)가 타입을 파악할 수 있도록, 딕셔너리의 키와 값의 타입을 미리 선언하는 문법입니다.
+- `Annotated[list[BaseMessage], add_messages]`
+  1. "BaseMessage 타입으로 구성된 리스트"가 실제 타입(필드)이라는 의미입니다.
+  2. "add_messages"는 함수입니다. LangGraph에서 가져온 함수이므로, LangGraph가 이 메타 데이터를 실행할 때 읽습니다.
+  3. AgentState는 "해당 필드를 갱신할 때마다 add_messages 함수를 reducer로 실행하라"는 의미가 됩니다.
+
+**개념이 포함된 섹션**
+
+PL
+
+### 개념 학습 정리 - Checkpointer와 Thread를 통한 대화 연속성 확인
+
+**문제 상황**
+
+질문과 응답이 서로 다른 사람의, 서로 다른 시점 메시지로 온다는 실제 서비스 컨셉에서, 이전 턴의 `pending_question`을 다음 턴에 어떻게 넘겨줄지 구조 설계가 필요했음.
+
+**부족한 개념**
+
+LangGraph 고급 문법의 하나인 Checkpointer, Thread는 여러 번의 독립된 `invoke()` 호출 사이에서 State를 이어줌. 그리고 하나의 대화(스레드) 범위 메모리인지 여러 대화에 걸친 메모리인지의 구분함.
+
+**알게 된 사실**
+
+- Checkpointer는 매 실행마다 State을 스냅샷으로 저장하고, Thread는 이 스냅샷을 모아서 하나의 `thread_id`로 묶음. 같은 `thread_id`로 다시 `invoke()`를 호출하면 LangGraph가 마지막 체크포인트에서 State부터 이어서 실행함.
+- LangGraph는 같은 메모리 저장도 하나의 스레드 범위 메모리(Checkpointer)와 여러 스레드에 걸친 메모리(Store)로 구분함. 현재 서비스는 하나의 대화창 안에서의 연속성이 필요하므로 Checkpointer가 적절함.
+- `graph.compile(checkpointer=checkpointer)`로 MemorySaver를 연결하고, 같은 `thread_id`로 `invoke()`를 2회 호출함. 2턴의 messages에 1턴의 HumanMessage/AIMessage가 동일한 id로 유지되어 정상 동작을 검증함.
+- 다만 그래프가 "`pending_question` 값이 있으면 `judge_response`로 가야 한다"는 조건부 라우팅이 없음. 다음 과제로 남김. (현재는 `pending_question`이 None으로 명시되어 있으므로, NotRequired를 사용하여 에러 상황을 들어내도록 전환 필요)
+- 다만 그래프가 "`pending_question` 값이 있으면 `judge_response`로 가야 한다"는 조건부 라우팅이 없음. 다음 과제로 남김. (추가로, `invoke()` 호출 시 입력값으로 명시한 `pending_question: None`이 노드 실행 전에 먼저 값을 덮어씀. `NotRequired`로 필드를 선택적으로 전환해, 추후 덮어쓰지 않도록 개선 필요)
+
+**개념이 포함된 섹션**
+
+AI
+
+### 추론 검증 정리 - graph.invoke() 실행 순서 오판 확인
+
+**문제 상황**
+
+`turn1 = graph.invoke(...)`와 `print_result("1턴", turn1)`으로 이어지는 코드에서, `turn1` 결과에 2턴 메시지("응 좋아")까지 포함된 것처럼 보이는 상황이 발생함.
+
+**추론한 내용**
+
+`print_result("1턴", turn1)`이 먼저 실행되고, 그 이후에 `invoke()` 호출로 `judge_schedule`/`judge_response`가 동작하면서 관련 메시지만 필터링되어 출력된다고 판단함.
+
+**검증 결과**
+
+- 파이썬 인터프리터의 순차 실행 원리(한 줄씩 위에서 아래로)로 코드를 따지지 않고, `print_result()` 함수가 먼저 실행되는 것으로 잘못 가정한 것이 원인이었음.
+- `judge_response` 내부의 디버그 `print(state["messages"])`와 `print("=====")` 구분선 출력이 `[1턴]`/`[2턴]` 출력보다 먼저 실행되고 있었음을 확인함.
+- `turn1 = graph.invoke(...)` 호출이 먼저 완료되어야 그 결과값을 `print_result`에 넘길 수 있으므로, 실행 순서를 잘못 파악하고 있었음. (휴먼 에러)
+
+**결론**
+
+- `turn1`에는 실제로 2턴 메시지가 포함되지 않았으며, 착시의 원인은 실행 순서에 대한 잘못된 가정이었음. 이후 `judge_response`를 `HumanMessage`만 필터링하도록 수정해 2턴에서 "긍정 응답"이 정상적으로 반환됨을 확인함.
+
+**개념이 포함된 섹션**
+
+PL
+
+### 개념 학습 정리 - 엣지와 라우팅의 개념 구분
+
+**문제 상황**
+
+조건부 라우팅 구현하기 전, LangGraph 생태계에서 얘기하는 라우팅이 무엇인지 개념 정의가 필요했음.
+
+**부족한 개념**
+
+엣지(edge)와 라우팅(routing)이 서로 다른 시점(설계 시점 vs 실행 시점)을 가리키는 표현이라는 것, 그리고 "조건부"라는 수식어가 왜 중복되어 보이는데도 관례적으로 함께 쓰이는지.
+
+**알게 된 사실**
+
+라우팅은 "실행 시점"에 여러 갈래의 엣지 중 실행할지 결정하는 행위/로직이고, 엣지는 그래프 "설계 시점"에 정의하는 표현임. 같은 것을 지칭하더라도 설계 시점과 실행 시점에 따라 표현이 달랐음. "조건에 따라 분기처리한다"는 의미를 이미 내포하고 있지만, 관례상 조건부 라우팅, 조건부 엣지라고 표현함.
+
+**개념이 포함된 섹션**
+
+AI
+
+### 에러 원인 규명 - NotRequired 전환 후, pending_question이 유지되지 않는 문제
+
+**문제 상황**
+
+"진행 중인 질문(`pending_question`)"을 선택값(`NotRequired`)으로 설정하고 테스트를 실행함. 여전히 고정된 단일 워크플로우로 2턴에 입력받은 "응답"은 `judge_schedule` 함수를 타기 때문에 "진행 중인 질문"이 `None`이 됨.
+
+**원인 분석**
+
+`NotRequired` 전환했어도, 그래프 구조 자체는 여전히 고정되어 있어서, 2턴에서도 `judge_schedule`이 무조건 다시 실행됨. `judge_schedule`은 사용자의 응답("응 좋아")에 물음표가 없으므로 일정 질문이 아니라고 판정하고, `pending_question`을 자체적으로 `None`으로 덮어씀.
+
+**결정 및 대응**
+
+START 노드와 judge_schedule 노드 간 실행 사이에 "조건부 라우팅"을 추가하여 문제를 해결함. `pending_question`이 이미 값을 가지고 있으면 `judge_schedule`을 건너뛰고 바로 `judge_response`로 라우팅되도록 구현함.
+
+**인사이트**
+
+디버그 출력으로 각 시점의 값을 직접 찍어 원인을 하나씩 분리해서 검증하는 것이 중요함.
+
+### 의사결정 정리 - 조기 종료 판단 변수 설계
+
+**문제 상황**
+
+기획안에 따라 조기 종료를 위한 조건부 라우팅을 추가 확장함. 조기 종료 판단 근거를 어디에 둘지 결정이 필요했음.
+
+**고려한 옵션**
+
+- (기존) `AIMessage.content` 또는 `pending_question`을 기준으로 조기 종료 처리.
+- (신규 1) `additional_kwargs`에 값을 추가하여 해당 필드 기준으로 조기 종료 처리.
+- (신규 2) 별도 State 필드를 추가하여 해당 필드 기준으로 조기 종료 처리.
+
+**결정 및 이유**
+
+별도 State 필드(`response_verdict`)를 생성하는 것으로 선택함.
+
+- (기존 방식의 한계) 사람이 읽는 결과 표시용이라, 문구가 정책에 따라 수정되면 이를 파싱해 판단하던 로직이 조용히 깨질 수 있어 에러 추적이 어려움.
+- (신규 1 방식의 한계) 값이 암시적이라 `AgentState` 정의에 나타나지 않음. `AgentState`만 보고는 분기 처리 여부를 확인하기 어려움. 또한 이미 `pending_question`을 별도 State 필드로 저장하기로 한 것과도 저장 방식이 어긋남.
+- (신규 2 방식 보완) 추가로 타입 범위를 3가지 값(`POSITIVE`/`NEGATIVE`/`UNCLEAR`)으로 좁힘. 오타, 미정의된 값을 타입 체커가 사전에 제외하도록 보완함.
+
+### 개념 학습 정리 - msgpack 직렬화와 Insecure Deserialization
+
+**문제 상황**
+
+`ResponseVerdict`(커스텀 `StrEnum`)를 State에 저장하자, Checkpointer가 "등록되지 않은 타입을 역직렬화한다"는 msgpack 경고를 발생시킴.
+
+**부족한 개념**
+
+- 직렬화·역직렬화의 정의
+- msgpack 포맷의 기본 타입 제약
+- 커스텀 객체의 태그 기반 복원 방식
+- Insecure Deserialization(안전하지 않은 역직렬화)이라는 알려진 보안 취약점 유형과 어떻게 연결되는지.
+
+**알게 된 사실**
+
+- Checkpointer는 msgpack 포맷으로 State를 저장·복원함. msgpack은 문자열, 숫자, 배열, dict, boolean, null 등 기본 타입만 표현 가능하며, 커스텀 클래스는 LangGraph의 직렬화기(JsonPlusSerializer)가 모듈·클래스를 태그로 붙여 저장·복원함.
+- 이 복원 방식은 Insecure Deserialization(안전하지 않은 역직렬화, OWASP Top 10:2025 A08 "Software or Data Integrity Failures" 항목)으로 이어질 수 있는 위험을 내포함. 그래서 LangGraph는 허용 목록(allowlist) 방식으로 검증된 타입만 역직렬화하도록 제한함.
+- 스키마 필드 타입을 "순수 문자열/Literal" 또는 "허용 목록" 중 무엇으로 관리할지 판단하는 체크리스트를 세움(기본 타입 표현 가능 여부, 부수 효과 유무, 값의 범위, Checkpointer 백엔드, 신뢰 경계, 재사용 빈도, 정보 손실 여부).
+- `ResponseVerdict`는 체크리스트 1번(기본 타입 표현 가능)에서 이미 YES였으므로, `Literal["positive", "negative", "unclear"] | None`으로 State에 순수 문자열로 저장하고, Enum은 코드 내 값 생성·비교용으로만 유지하는 방식을 채택함.
+
+**참고 자료**
+
+- 상세 내용: [블로그 게시글 바로가기](https://whale2200d-developer.tistory.com/25)
+- https://owasp.org/www-community/vulnerabilities/Insecure_Deserialization
+- https://owasp.org/Top10/2025/
+
+**개념이 포함된 섹션**
+
+PL
