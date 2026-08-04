@@ -1,4 +1,4 @@
-from typing import Annotated, TypedDict
+from typing import Annotated, TypedDict, NotRequired
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -66,6 +66,10 @@ def save_rdb(state: AgentState):
 
     return {"messages": [AIMessage(content=answer)]}
 
+def route_from_start(state: AgentState):
+    decision = "judge_response" if state.get("pending_question") else "judge_schedule"
+    print(f"[routing] pending_question={state.get("pending_question")} -> {decision}")
+    return decision
 
 # print
 def print_result(label: str, result: dict):
@@ -77,7 +81,7 @@ def print_result(label: str, result: dict):
 # 1. declarate state
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
-    pending_question: str | None
+    pending_question: NotRequired[str | None]
 
 graph = StateGraph(AgentState)
 
@@ -86,7 +90,8 @@ graph.add_node(judge_schedule)
 graph.add_node(judge_response)
 graph.add_node(judge_date)
 graph.add_node(save_rdb)
-graph.add_edge(START, "judge_schedule")
+# graph.add_edge(START, "judge_schedule")
+graph.add_conditional_edges(START, route_from_start, {"judge_schedule": "judge_schedule", "judge_response": "judge_response"},)
 graph.add_edge("judge_schedule", "judge_response")
 graph.add_edge("judge_response", "judge_date")
 graph.add_edge("judge_date", "save_rdb")
@@ -107,7 +112,6 @@ print_result("1턴", turn1)
 
 turn2 = graph.invoke({
         "messages": [HumanMessage(content="응 좋아")],
-        "pending_question": None
     }, config=config)
 print_result("2턴", turn2)
 
