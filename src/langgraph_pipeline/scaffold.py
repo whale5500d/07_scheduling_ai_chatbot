@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Annotated, TypedDict, NotRequired
+from typing import Annotated, TypedDict, NotRequired, Literal
 
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.runnables import RunnableConfig
@@ -43,7 +43,7 @@ def judge_response(state: AgentState):
 
     return {
             "messages": [AIMessage(content=answer)],
-            "response_verdict": verdict
+            "response_verdict": verdict.value
         }
 
 def judge_date(state: AgentState):
@@ -81,7 +81,7 @@ def route_after_schedule(state: AgentState):
     return "judge_response" if state.get("pending_question") else END
 
 def route_after_response(state: AgentState):
-    return "judge_date" if state.get("response_verdict") == ResponseVerdict.POSITIVE else END
+    return "judge_date" if state.get("response_verdict") == ResponseVerdict.POSITIVE.value else END
 
 # print
 def print_result(label: str, result: dict):
@@ -100,7 +100,7 @@ class ResponseVerdict(StrEnum):
 class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     pending_question: NotRequired[str | None]
-    response_verdict: NotRequired[ResponseVerdict | None]
+    response_verdict: NotRequired[Literal["positive", "negative", "unclear"] | None]
 
 graph = StateGraph(AgentState)
 
