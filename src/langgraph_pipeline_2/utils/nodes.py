@@ -1,5 +1,6 @@
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 from langgraph_pipeline_2.state import AgentState, ResponseVerdict
+from langgraph_pipeline_2.utils.llm import get_bound_agent
 
 def judge_schedule(state: AgentState):
     """가장 최근 사용자 메시지에 물음표가 있으면 일정 질문으로 간주하는
@@ -66,4 +67,20 @@ def save_rdb(state: AgentState):
         "messages": [AIMessage(content=answer)],
         "pending_question": None,
         "response_verdict": None,
+    }
+
+def call_model(state: AgentState):
+    is_already_searched = isinstance(state["messages"][-1], ToolMessage)
+
+    llm = get_bound_agent(is_already_searched)
+    response = llm.invoke(state["messages"])
+
+    # 2. tool_calls가 있을 경우, 기존값 유지
+    if len(response.tool_calls) > 0:
+        return {"messages": [response]}
+    
+    # 3. tool_calls가 없을 경우, Structured Output으로 최종 판정
+    return {
+        "messages": [response],
+        "response_verdict": response.content
     }
