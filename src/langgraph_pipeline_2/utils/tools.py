@@ -1,5 +1,8 @@
 # tools.py
 from langchain_core.tools import tool
+from langchain_core.vectorstores import InMemoryVectorStore
+
+
 
 @tool
 def search_case_examples(query: str) -> str:
@@ -8,8 +11,6 @@ def search_case_examples(query: str) -> str:
     print("[스텁] 사례집 검색: X (미구현)")
     return "관련 사례를 찾을 수 없습니다 (스텁)"
 
-def get_tools():
+def get_tools(store: InMemoryVectorStore):
     """Tools를 list로 구성하기"""
     return [search_case_examples]
-
-tools = get_tools()
