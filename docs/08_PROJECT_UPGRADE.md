@@ -60,3 +60,28 @@ print(result)
 - uv(Rust) vs Poetry(Python) 속도 차이
 - LangGraph Checkpointer 구현 종류별 차이(MemorySaver/SqliteSaver/PostgresSaver)
 - python -m 모듈 실행 vs 스크립트 직접 실행의 차이
+- Python Enum/StrEnum과 Typescript enum 비교
+- GenericFakeChatModel vs 커스텀 스텁 클래스 비교
+- Pydantic BaseModel 표준 방식(생성자 초기화, frozen 옵션)
+- Type Widening(타입 넓히기) 개념
+- Python 인터프리터, FastAPI, Uvicorn 세 프로세스의 관계
+
+## 프로젝트/리팩토링 관련 과제
+
+- rag_pipeline -> langchain -> langgraph 전환 필요성 순서대로 정리
+- 미니 LangGraph 실행 프레임워크 직접 구현
+- 합성 데이터 3종 프로젝트명 갱신(langgraph_pipeline_2 외 나머지 파이프라인)
+- pending_question TTL 산정 기준 미정
+- pyright 타입 오류 다수, 타입 정의 정리 필요
+- langgraph_pipeline_2: 워킹 스켈레톤·사례집 완료, 사례집 VectorDB 임베딩·연결·store 인자화(lifespan 전환)·LLM 실제 연결 등 남음
+- 함수 네이밍 커스텀 컨벤션 설계 보류 중
+
+## 클로드 지침서 관련 과제
+
+- t1, t3 분류 기준 재검토
+- "통째로" 표현 금지 여부 검토(미확정)
+- 커밋 scope 규칙 보완
+
+## 별도 트랙
+
+- 학습 정착 루틴 적용 예정(로드맵 전체 완료 후)
