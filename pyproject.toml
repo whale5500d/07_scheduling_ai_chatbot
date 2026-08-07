@@ -57,3 +57,4 @@ dev = [
 [tool.taskipy.tasks]
 test = "pytest tests/ -v"
 type-check = "pyright"
+visualization = "uv run --env-file .env python -m scripts.visualization"
