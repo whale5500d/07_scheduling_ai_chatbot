@@ -1,4 +1,5 @@
 from pathlib import Path
+from paths import DATA_DIR
 
 from langchain_core.documents import Document
 from langchain_core.vectorstores import InMemoryVectorStore
@@ -8,12 +9,12 @@ from langchain_huggingface import HuggingFaceEmbeddings
 # (현재) txt/md로 시작 (파싱 난이도가 가장 낮음).
 # CSV → JSON → HTML → DOCX → PDF 순(난이도 순)으로 형식을 경험하며 확장 예정
 # 이 과정에서 경험한 노하우는 문서로 기록 필요
-_RESPONSE_CASE_EXAMPLES_PATH = Path("data/response_case_examples.md")
+_RESPONSE_CASE_EXAMPLES_PATH = DATA_DIR / "response_case_examples.md"
 _EMBEDDING_MODEL_NAME="sentence-transformers/all-MiniLM-L6-v2"
 
 def build_vector_store():
     # 1. 문서 로딩
-    text = _RESPONSE_CASE_EXAMPLES_PATH.read_text(encoding="utf-8")
+    text = Path(_RESPONSE_CASE_EXAMPLES_PATH).read_text(encoding="utf-8")
 
     # 2. 파싱
     document = Document(page_content=text, metadata={"source": str(_RESPONSE_CASE_EXAMPLES_PATH)})
@@ -35,3 +36,9 @@ def build_vector_store():
     store.add_documents(chunks)
 
     return store
+
+# if __name__ == '__main__':
+#     store = build_vector_store()
+#     results = store.similarity_search("ㅇㅋㅇㅋ", k=1)
+#     for doc in results:
+#         print(doc.page_content[:100])
