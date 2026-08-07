@@ -615,3 +615,43 @@ PL
 **개념이 포함된 섹션**
 
 AI
+
+### 개념 학습 정리 - HuggingFace Hub 오프라인 모드 설정
+
+**문제 상황**
+
+vector store를 사용하는 그래프 구조(`graph.py`)를 실행할 때마다, `HuggingFaceEmbeddings` 로딩 과정에서 반복적으로 대기 시간과 인증되지 않은 요청(unauthenticated request) 경고가 발생함.
+
+**부족한 개념**
+
+`huggingface_hub`이 모델 로딩 시 Hub 서버와 통신하는 방식, 그리고 이를 제어하는 환경변수(`HF_HUB_OFFLINE`)의 존재를 알지 못함.
+
+**알게 된 사실**
+
+모델은 최초 실행 시 로컬 캐시(`~/.cache/huggingface/hub`)에 저장되며, 이후 실행에서도 최신 버전 여부를 확인하기 위해 매번 Hub 서버에 HTTP 요청을 보냄. `HF_HUB_OFFLINE=1` 환경변수를 설정하면 이 확인 요청을 생략하고 로컬 캐시 파일만 사용함. 환경변수는 `.env` 파일, `uv run --env-file` 옵션, `taskipy` task(`visualization`)로 관리함.
+
+**개념이 포함된 섹션**
+
+AI
+
+### 개념 학습 정리 - LangGraph 시각화 및 상태 조회 기능
+
+**문제 상황**
+
+LangGraph 그래프 구조를 markdown 문서에 시각화하기 위해 `get_graph()`를 사용해 mermaid에 적용했으나, 그 외에 어떤 시각화 및 조회 기능이 있는지 파악되지 않음.
+
+**부족한 개념**
+
+`get_graph()` 외 LangGraph가 제공하는 시각화 및 상태 조회 관련 API(`get_state_history`, `stream`, subgraph, LangSmith 연동)의 각 역할과 차이.
+
+**알게 된 사실**
+
+- `get_graph().draw_mermaid()`는 그래프의 정적 구조(노드, 엣지, 조건부 분기)만 mermaid 문법으로 출력함. 실행 상태는 포함하지 않음.
+- `get_state_history(config)`는 thread별 checkpoint 이력을 조회하는 API임.
+- `stream(stream_mode="values"/"updates")`은 노드 실행 순서와 state 변화를 실시간으로 확인하는 기능임.
+- subgraph는 세션(대화) 격리 목적이 아니라, 노드 그룹을 독립된 state schema로 캡슐화하는 목적으로 사용함. 세션 격리는 checkpointer의 `thread_id`로 처리함.
+- LangSmith는 노드별 실행 시간, tool 호출 여부 등 실행 트레이스를 웹 UI에서 확인하는 별도 연동 서비스임.
+
+**개념이 포함된 섹션**
+
+AI

@@ -12,9 +12,6 @@ tools = get_tools()
 def route_from_start(state: AgentState):
     return "judge_response" if state.get("pending_question") else "judge_schedule"
 
-def route_after_schedule(state: AgentState):
-    return "judge_response" if state.get("pending_question") else END
-
 def route_after_response(state: AgentState):
     if state.get("response_verdict") == ResponseVerdict.POSITIVE.value:
         return "judge_date"
@@ -47,7 +44,7 @@ graph.add_node(judge_response)
 graph.add_node(judge_date)
 graph.add_node(save_rdb)
 graph.add_conditional_edges(START, route_from_start, {"judge_schedule": "judge_schedule", "judge_response": "judge_response"},)
-graph.add_conditional_edges("judge_schedule", route_after_schedule, {"judge_response": "judge_response", END: END})
+graph.add_edge("judge_schedule", END)
 graph.add_conditional_edges("judge_response", route_after_response, {"judge_date": "judge_date", "call_model": "call_model", END: END})
 graph.add_node("call_model", call_model)
 graph.add_node("tools", ToolNode(tools))

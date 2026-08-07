@@ -51,6 +51,41 @@ print(result)
 5. 개발 계획 상 질문/응답 query는 순서가 있음. 질문과 응답 사이 State는 유지되어야 함. 상태의 영속성(Persistence, 공식 문서 상 대화 연속성(Conversation Continuity)라 표현)를 위해 Thread, Checkpoint(er)를 적용함. 서로 다른 query가 요청하더라도 State가 자동 복원(restore)됨을 확인.
 6. 고정된 단일 파이프라인으로 설계되어 있음. 호출 시 모든 노드가 실행되므로 장기적으로 연산 낭비가 예상됨. 계획 상 필요한 노드만 사용되도록 조건부 라우팅 처리가 필요함.
 
+## 그래프 시각화 결과
+
+```mermaid
+graph TD;
+        __start__([<p>__start__</p>]):::first
+        judge_schedule("일정 질문 판단 (judge_schedule)")
+        judge_response("응답 긍정/부정 판단 (judge_response)")
+        judge_date("날짜 정규화 (judge_date)")
+        save_rdb("RDB 저장 (save_rdb)")
+        call_model("LLM 판정 (call_model)")
+        tools("사례 검색 (tools)")
+        confirm_save("저장 확인, human-in-the-loop (confirm_save)")
+        __end__([<p>__end__</p>]):::last
+        __start__ -.-> judge_response;
+        __start__ -.-> judge_schedule;
+        call_model -.-> __end__;
+        call_model -.-> judge_date;
+        call_model -.-> tools;
+        confirm_save -.-> __end__;
+        confirm_save -.-> save_rdb;
+        judge_date --> confirm_save;
+        judge_response -.-> __end__;
+        judge_response -.-> call_model;
+        judge_response -.-> judge_date;
+        judge_schedule -.-> __end__;
+        judge_schedule -.-> judge_response;
+        tools --> call_model;
+        save_rdb --> __end__;
+        classDef default fill:#f2f0ff,line-height:1.2
+        classDef first fill-opacity:0
+        classDef last fill:#bfb6fc
+```
+
+## 테스트 케이스
+
 ## DB
 
 - 개발자가 DB에 접근하는 방법은 직접 접근, 간접 접근 두 가지로 분류.
