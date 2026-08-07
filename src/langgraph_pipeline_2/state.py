@@ -1,3 +1,4 @@
+from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, TypedDict, NotRequired, Literal
 
@@ -13,3 +14,5 @@ class AgentState(TypedDict):
     messages: Annotated[list[BaseMessage], add_messages]
     pending_question: NotRequired[str | None]
     response_verdict: NotRequired[Literal["positive", "negative", "unclear"] | None]
+    resolved_date: NotRequired[datetime | None]
+    is_confirmed: NotRequired[bool | None]

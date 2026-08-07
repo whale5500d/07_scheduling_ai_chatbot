@@ -1,6 +1,10 @@
+from typing import cast
+from datetime import datetime
+
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langgraph.types import interrupt
 from langgraph_pipeline_2.state import AgentState, ResponseVerdict
-from langgraph_pipeline_2.utils.llm import get_bound_agent
+from langgraph_pipeline_2.utils.llm import get_bound_agent, get_date_agent
 
 def judge_schedule(state: AgentState):
     """가장 최근 사용자 메시지에 물음표가 있으면 일정 질문으로 간주하는
@@ -45,28 +49,46 @@ def judge_date(state: AgentState):
     """pending_question에서 상대적 날짜 표현을 절대 날짜로 정규화하는
     최소 규칙 버전. 사례집 기반 정교화는 이후 단계에서 추가 예정."""
     question = state.get("pending_question")
+    today = datetime.now().strftime("%Y-%m-%d")
+    input_prompt = f"오늘은 {today}입니다. 다음 표현의 절대 날짜를 구하세요: {question}"
 
-    if question and "내일" in question:
-        answer = "날짜: 내일로 판정됨 (정규화 로직은 추후 정교화 예정)"
-    else:
-        answer = "날짜 표현을 찾을 수 없습니다"
+    llm = get_date_agent(question)
+    response = llm.invoke(input_prompt)
+    casted_content = cast(str, response.content)
 
-    return {"messages": [AIMessage(content=answer)]}
+    if casted_content == "표현 불가":
+        return {
+            "messages": [AIMessage(content=casted_content)],
+            "resolved_date": None
+        }
+
+    return {
+        "messages": [AIMessage(content=casted_content)],
+        "resolved_date": datetime.strptime(cast(str, casted_content), "%Y-%m-%d")
+    }
 
 def save_rdb(state: AgentState):
     """일정을 RDB에 저장하는 최소 규칙 버전. 실제 POST 요청은 이후
     단계에서 추가 예정."""
-    question = state.get("pending_question")
+    # TODO: question을 content로 변경하기
+    question = state.get('pending_question')
+    resolved_date = state.get("resolved_date")
 
-    if question:
-        answer = f"저장 완료: '{question}'"
+    if question and resolved_date:
+        saved_payload = {'content': question, 'date': resolved_date}
+        answer = f"저장 완료: '{question}' → {resolved_date}"
+    elif question:
+        saved_payload = {'content': question, 'date': None}
+        answer = f"저장 완료: '{question}' (날짜 미정)"
     else:
-        answer = "저장할 일정이 없습니다"
+        saved_payload = None
+        answer = "저장할 일정이 없음."
 
     return {
-        "messages": [AIMessage(content=answer)],
+        "messages": [AIMessage(content=str(answer))],
         "pending_question": None,
         "response_verdict": None,
+        "resolved_date": None,
     }
 
 def call_model(state: AgentState):
@@ -84,3 +106,15 @@ def call_model(state: AgentState):
         "messages": [response],
         "response_verdict": response.content
     }
+
+def confirm_save(state: AgentState):
+    """judge_date 완료 후, RDB 저장 여부를 사용자에게 확인받는 노드.
+    interrupt()로 그래프 실행을 멈추고, 사용자 응답(True/False)을 기다린다."""
+    query_response = {
+        "content": state.get("pending_question"),
+        "date": state.get("resolved_date")
+    }
+    decision = interrupt(query_response)
+
+    return {"is_confirmed": decision}
+

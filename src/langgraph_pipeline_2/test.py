@@ -2,8 +2,14 @@
 from typing import cast
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import HumanMessage
+from langgraph.types import Command
 from langgraph_pipeline_2.graph import graph
 from langgraph_pipeline_2.state import AgentState
+
+RESPONSE_TEST = {
+    "content": "응 좋아",
+    "query_request": True
+}
 
 # print
 def print_result(label: str, result: AgentState):
@@ -23,13 +29,11 @@ turn1 = cast(AgentState, turn1)
 print_result("1턴", turn1)
 
 turn2 = graph.invoke({
-        "messages": [HumanMessage(content="응 좋아")],
+        "messages": [HumanMessage(content=RESPONSE_TEST["content"])],
     }, config=config)
 turn2 = cast(AgentState, turn2)
 print_result("2턴", turn2)
 
-turn3 = graph.invoke({
-        "messages": [HumanMessage(content="모레 영화 볼래?")],
-    }, config=config)
+turn3 = graph.invoke(Command(resume=RESPONSE_TEST['query_request']), config=config)
 turn3 = cast(AgentState, turn3)
 print_result("3턴", turn3)
