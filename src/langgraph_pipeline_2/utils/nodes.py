@@ -94,7 +94,7 @@ def save_rdb(state: AgentState):
 def call_model(state: AgentState):
     is_already_searched = isinstance(state["messages"][-1], ToolMessage)
 
-    llm = get_bound_agent(is_already_searched)
+    llm = get_bound_agent(is_already_searched, state)
     response = llm.invoke(state["messages"])
 
     # 2. tool_calls가 있을 경우, 기존값 유지
