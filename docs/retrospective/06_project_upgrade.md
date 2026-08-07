@@ -570,3 +570,25 @@ PL
 **개념이 포함된 섹션**
 
 AI
+
+### 추론 검증 정리 - datetime 타입의 msgpack 직렬화 안전성
+
+**문제 상황**
+
+`resolved_date`를 `datetime` 타입으로 State에 저장하는 상황에서, `ResponseVerdict` 때와 달리 msgpack 경고가 없을 것으로 예상함.
+
+**추론한 내용**
+
+`datetime`은 Python 표준 라이브러리 타입이므로, LangGraph 직렬화기가 이미 인식하여 경고 없이 정상 동작할 것이라고 추론함.
+
+**검증 결과**
+
+추론이 맞았음. - `response.content`(str)와 `datetime.strptime(response.content, "%Y-%m-%d")`(datetime 객체) 두 경우 모두 State에 직접 넣어 재현한 결과, datetime 객체는 경고 없이 정상 동작함을 확인함.
+
+**결론**
+
+datetime은 Python 표준 라이브러리 타입이라 LangGraph 직렬화기가 이미 인식했음. ResponseVerdict는 프로젝트가 직접 만든 커스텀 클래스라 경고가 났던 것과 대비됨. resolved_date는 datetime 타입으로 유지하기로 함.
+
+**개념이 포함된 섹션**
+
+PL
