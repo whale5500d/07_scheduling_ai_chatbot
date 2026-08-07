@@ -549,3 +549,24 @@ PL
 **개념이 포함된 섹션**
 
 PL
+
+### 개념 학습 정리 - 임베딩 모델과 langchain_huggingface의 어댑터 역할
+
+**문제 상황**
+
+`HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")`를 사용하며, 임베딩 모델이 무엇인지, `all-MiniLM-L6-v2`가 어떤 모델인지, `transformers`와 `langchain_huggingface`가 왜 별개로 필요한지 확인함.
+
+**부족한 개념**
+
+임베딩도 학습된 인공지능 모델인지, `all-MiniLM-L6-v2`라는 이름이 무엇을 뜻하는지, `transformers`(Hugging Face 핵심 라이브러리)와 `langchain_huggingface`의 관계.
+
+**알게 된 사실**
+
+- 임베딩 모델은 텍스트를 입력받아 벡터를 출력하도록 학습된 신경망임. `all-MiniLM-L6-v2`는 Transformer 구조를 기반으로, 의미가 비슷한 문장은 벡터도 가깝게, 다른 문장은 멀게 배치하도록 훈련됨.
+- `all-MiniLM-L6-v2`의 이름은 각각 의미를 가짐. `all`은 다양한 데이터셋을 폭넓게 학습, `MiniLM`은 Microsoft의 경량화(distilled) 언어 모델 계열, `L6`는 Transformer 레이어가 6개(원본 BERT의 절반 수준), `v2`는 버전을 뜻함.
+- LLM(생성 목적)과 임베딩 모델(의미를 벡터로 요약하는 목적)은 둘 다 Transformer 계열일 수 있지만, 학습 목표와 출력 형태가 다름.
+- `InMemoryVectorStore`는 `Embeddings`라는 정해진 인터페이스(포트)를 만족하는 객체만 받음. `transformers`(원본 라이브러리)를 그대로 쓰면 이 인터페이스 형태로 나오지 않으므로, `langchain_huggingface`가 `sentence-transformers`/`transformers` 모델을 감싸 `Embeddings` 인터페이스에 맞게 변환하는 어댑터 역할을 함.
+
+**개념이 포함된 섹션**
+
+AI
