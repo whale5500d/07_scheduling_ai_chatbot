@@ -51,6 +51,18 @@ print(result)
 5. 개발 계획 상 질문/응답 query는 순서가 있음. 질문과 응답 사이 State는 유지되어야 함. 상태의 영속성(Persistence, 공식 문서 상 대화 연속성(Conversation Continuity)라 표현)를 위해 Thread, Checkpoint(er)를 적용함. 서로 다른 query가 요청하더라도 State가 자동 복원(restore)됨을 확인.
 6. 고정된 단일 파이프라인으로 설계되어 있음. 호출 시 모든 노드가 실행되므로 장기적으로 연산 낭비가 예상됨. 계획 상 필요한 노드만 사용되도록 조건부 라우팅 처리가 필요함.
 
+## DB
+
+- 개발자가 DB에 접근하는 방법은 직접 접근, 간접 접근 두 가지로 분류.
+  - 직접 접근: driver 라이브러리. SQL 문자열을 직접 작성해서 접근 (테이블과 클래스 매핑 없음).
+    - sqlite3: 동기 방식 driver.
+    - aiosqlite: 비동기 방식 driver.
+  - 간접 접근: ORM (Object-Relational Mapping, 객체-관계 매핑) 라이브러리. Python 클래스로 테이블을 정의하여 SQL 직접 작성 없이 접근.
+    - SQLAlchemy: 내부적으로 sqlite3, aiosqlite, psycopg를 호출하여 동기/비동기 방식 모두 가능.
+  - 스키마 (schema) 변경 관리.
+    - driver 방식: CREATE TABLE, ALTER TABLE 등 SQL 문을 직접 작성해서 관리.
+    - ORM 방식: Alembic 같은 migration (마이그레이션) 도구를 사용해, 하나의 DB에 대한 스키마 변경 이력을 버전 단위로 기록하고 여러 환경(로컬/서버)에 순서대로 적용.
+
 ## 딥다이브 주제
 
 - 동적 링킹(dynamic linking)
