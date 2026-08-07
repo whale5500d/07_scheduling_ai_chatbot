@@ -592,3 +592,26 @@ datetime은 Python 표준 라이브러리 타입이라 LangGraph 직렬화기가
 **개념이 포함된 섹션**
 
 PL
+
+### 개념 학습 정리 - interrupt()와 Command(resume=...)를 통한 human-in-the-loop
+
+**문제 상황**
+
+`save_rdb` 전에 사용자 확인(human-in-the-loop)을 추가하기 위해 `interrupt()`와 `Command(resume=...)`를 학습함.
+
+**부족한 개념**
+
+`interrupt()`가 그래프 실행을 어떻게 멈추는지, 재개는 어떻게 이루어지는지, 그리고 이 메커니즘을 사용할 때 주의해야 할 점.
+
+**알게 된 사실**
+
+- (일시정지 전) `interrupt()`는 노드 안에서 호출될 때 그래프 실행을 일시 정지하고, 전달한 값을 클라이언트에게 노출함.
+- (일시정지 중) 이 때 Checkpointer가 현재 State를 저장하고, 재개될 때까지 무기한 대기함.
+- (일시정지 후) 재개될 때는 별도의 `invoke()`를 호출하고, `Command(resume=값)`을 전달함.
+  - `interrupt()`가 호출된 지점부터 `resume`으로 전달한 값으로 대체됨.
+  - `interrupt()` 이전에 있는 코드는 멱등(idempotent)해야 함. 부수 효과(파일 쓰기, API 호출 등)를 두면 재실행 시 중복 실행될 수 있음.
+- 이후 `save_rdb`(승인) 또는 `END`(거부)로 라우팅하는 구조를 구현하고, 정상 동작함을 확인함.
+
+**개념이 포함된 섹션**
+
+AI
