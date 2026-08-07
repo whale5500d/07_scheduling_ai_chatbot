@@ -15,3 +15,4 @@ class AgentState(TypedDict):
     pending_question: NotRequired[str | None]
     response_verdict: NotRequired[Literal["positive", "negative", "unclear"] | None]
     resolved_date: NotRequired[datetime | None]
+    is_confirmed: NotRequired[bool | None]

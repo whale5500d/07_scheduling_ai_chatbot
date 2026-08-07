@@ -2,6 +2,7 @@ from typing import cast
 from datetime import datetime
 
 from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
+from langgraph.types import interrupt
 from langgraph_pipeline_2.state import AgentState, ResponseVerdict
 from langgraph_pipeline_2.utils.llm import get_bound_agent, get_date_agent
 
@@ -105,3 +106,15 @@ def call_model(state: AgentState):
         "messages": [response],
         "response_verdict": response.content
     }
+
+def confirm_save(state: AgentState):
+    """judge_date 완료 후, RDB 저장 여부를 사용자에게 확인받는 노드.
+    interrupt()로 그래프 실행을 멈추고, 사용자 응답(True/False)을 기다린다."""
+    query_response = {
+        "content": state.get("pending_question"),
+        "date": state.get("resolved_date")
+    }
+    decision = interrupt(query_response)
+
+    return {"is_confirmed": decision}
+

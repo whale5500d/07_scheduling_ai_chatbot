@@ -4,7 +4,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph_pipeline_2.state import AgentState, ResponseVerdict
-from langgraph_pipeline_2.utils.nodes import judge_schedule, judge_response, judge_date, save_rdb, call_model
+from langgraph_pipeline_2.utils.nodes import judge_schedule, judge_response, judge_date, save_rdb, call_model, confirm_save
 from langgraph_pipeline_2.utils.tools import get_tools
 
 tools = get_tools()
@@ -32,6 +32,12 @@ def route_after_call_model(state: AgentState):
     else:
         return END
 
+def route_after_confirm(state: AgentState):
+    if state.get("is_confirmed"):
+        return "save_rdb"
+    else:
+        return END
+
 # 1. create state graph object
 graph = StateGraph(AgentState)
 
@@ -47,7 +53,9 @@ graph.add_node("call_model", call_model)
 graph.add_node("tools", ToolNode(tools))
 graph.add_conditional_edges("call_model", route_after_call_model, {"tools": "tools", "judge_date": "judge_date", END: END})
 graph.add_edge("tools", "call_model")
-graph.add_edge("judge_date", "save_rdb")
+graph.add_node("confirm_save", confirm_save)
+graph.add_edge("judge_date", "confirm_save")
+graph.add_conditional_edges("confirm_save", route_after_confirm, {"save_rdb": "save_rdb", END: END})
 graph.add_edge("save_rdb", END)
 
 # 3. create graph
