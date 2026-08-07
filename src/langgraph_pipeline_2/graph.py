@@ -5,7 +5,9 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph_pipeline_2.state import AgentState, ResponseVerdict
 from langgraph_pipeline_2.utils.nodes import judge_schedule, judge_response, judge_date, save_rdb, call_model
-from langgraph_pipeline_2.utils.tools import tools
+from langgraph_pipeline_2.utils.tools import get_tools
+
+tools = get_tools()
 
 def route_from_start(state: AgentState):
     return "judge_response" if state.get("pending_question") else "judge_schedule"

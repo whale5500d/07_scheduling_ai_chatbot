@@ -12,6 +12,8 @@ def get_bound_agent(is_already_searched: bool):
     도구 목록을 인자로 받습니다.
     도구들이 바인딩된 것처럼 동작하는 Fake LLM 객체를 돌려주는 역할을 합니다.
     """
+    # (단기) 모든 UNCLEAR를 LLM에게 위임해 전수 처리(exhaustiveness)를 보장함.
+    # TODO: (장기) 사용자 패턴 기반 벡터 유사도 로직을 점진 추가해 LLM 호출 비용, 응답 속도를 개선 예정
     # fake chat models    
     if _is_accuracy or is_already_searched: # 최종 판정 (tool_calls 없음)
         return GenericFakeChatModel(messages=iter([AIMessage(content=ResponseVerdict.POSITIVE.value)]))
