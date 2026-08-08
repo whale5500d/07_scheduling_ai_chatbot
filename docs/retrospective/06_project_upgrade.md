@@ -703,3 +703,31 @@ Network
 **개념이 포함된 섹션**
 
 AI
+
+### 에러 원인 규명 - is_finished 판단 시 get_state().next/tasks 신뢰 불가
+
+**문제 상황**
+
+`/query` 응답의 `is_finished` 필드를, `graph.get_state(config).next`가 빈 튜플인지로 판단하도록 구현함. 케이스 3의 interrupt 발생 시점(confirm_save에서 대기 중)에도 `is_finished`가 `True`로 잘못 반환됨.
+
+**원인 분석**
+
+`interrupt()`는 노드 실행 도중 예외를 발생시켜 그래프 실행을 중단시키는 방식으로 동작하며, 이 중단 시점에 `get_state(config).next`와 `.tasks`를 직접 출력해 확인한 결과 둘 다 빈 값(`()`)으로 나옴. 즉 interrupt 상태에서 "다음 실행할 노드가 없다"는 것과 "그래프가 END까지 실행이 끝났다"는 것을 이 두 값만으로는 구분할 수 없음이 실측으로 확인됨.
+
+**결정 및 대응**
+
+`get_state().next`/`.tasks` 대신, `graph.invoke()`가 반환한 State 값(`pending_question`, `response_verdict`)의 조합으로 판단하도록 변경함.
+
+- interrupt는 `"__interrupt__"` 키 존재 여부로 별도 판단.
+- 그 외 END 중 "질문만 판정되고 아직 응답을 기다리는 상태"(`pending_question`은 있고 `response_verdict`는 없음)만 미완료로 판단.
+- 나머지 모든 경우(질문 아님, 부정 판정, 저장 완료, 저장 거부)는 완료로 판단.
+
+케이스 2(1턴), 케이스 8(1턴/2턴), 케이스 3(1~3턴) 시나리오로 검증해 기대값과 실제 응답이 모두 일치함을 확인함.
+
+**인사이트**
+
+`is_interrupted` 하나만으로 `is_finished`를 판단하면 부족하다는 점을 확인함. 질문만 판정되고 아직 응답을 기다리는 상태(interrupt는 아니지만 END도 아닌 상태)가 별도로 존재하기 때문.
+
+**개념이 포함된 섹션**
+
+AI
