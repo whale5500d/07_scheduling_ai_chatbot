@@ -655,3 +655,27 @@ LangGraph 그래프 구조를 markdown 문서에 시각화하기 위해 `get_gra
 **개념이 포함된 섹션**
 
 AI
+
+### 개념 학습 정리 - Uvicorn/FastAPI 애플리케이션 생명주기와 lifespan 이동 근거
+
+**문제 상황**
+
+`tools.py`에 벡터DB 생성 함수(`build_vector_store()`)가 모듈 최상단에서 즉시 실행되도록 작성되어 있음. 이를 FastAPI의 `lifespan`으로 옮기려 했으나, 왜 옮겨야 하는지 서버 실행 흐름 관점에서 근거를 설명하지 못함.
+
+**부족한 개념**
+
+CGI, WSGI, ASGI 표준의 차이와 등장 배경. Python 인터프리터, Uvicorn, FastAPI(Starlette) 세 주체가 서버 실행 과정에서 각각 언제, 무엇을 하는지에 대한 시간 순서. `scope`, `receive`, `send`로 이루어지는 ASGI 통신 방식과, 이 통신이 애플리케이션 생명주기(lifespan)와 맺는 관계.
+
+**알게 된 사실**
+
+- CGI, WSGI, ASGI는 웹 서버와 웹 애플리케이션(프레임워크)이 서로 통신하는 방식에 대한 표준 규격이며, Python 웹 생태계의 파편화 문제를 해결하기 위해 순서대로 등장함. WSGI(PEP 333/3333)는 Phillip J. Eby가 2003년 12월 제안했고, ASGI는 이후 비동기 처리 필요성에 따라 WSGI를 확장한 규격.
+- 웹 서버(Uvicorn)와 웹 프레임워크(FastAPI)는 역할이 다름. 웹 서버는 네트워크 연결과 HTTP 프로토콜 처리를, 웹 프레임워크는 라우팅과 비즈니스 로직 처리를 담당하며, 이 둘을 표준 규격으로 분리해 서로 다른 조합을 자유롭게 쓸 수 있게 함.
+- `uvicorn main:app` 실행 시, Python 인터프리터가 Uvicorn 코드를 먼저 실행하고, 그 안에서 `main:app` 인자를 `main`(모듈 import)과 `app`(속성 추출) 두 단계로 나눠 처리함. 이 과정에서 `main.py`가 한 줄씩 실행되며 `FastAPI(...)` 객체가 생성됨.
+- `FastAPI(...)` 생성 시 `lifespan` 함수는 실행되지 않고, FastAPI → Starlette → Router 순으로 전달되어 `lifespan_context`라는 이름으로 저장만 됨.
+- `main.py` 전체 import가 끝난 뒤, Uvicorn이 `app(scope, receive, send)` 형태로 Router를 호출하고, `lifespan.startup` 메시지를 보내야 비로소 저장해뒀던 `lifespan` 함수 내부(`yield` 이전) 코드가 처음 실행됨. 종료 시에는 `lifespan.shutdown` 메시지로 `yield` 이후 코드(정리 로직)가 실행됨.
+- 애플리케이션 생명주기(startup ~ shutdown)는 Uvicorn이 관리하며, FastAPI/Starlette는 그 생명주기 안에서 시작/종료 시점에 무엇을 할지 정의하는 자리(`lifespan` 함수)만 제공함.
+- 이를 근거로, `build_vector_store()`가 SOLID 원칙 중 단일 책임 원칙에 부합하지 않을 뿐 아니라, 더 근본적으로는 생성 시점이 애플리케이션 생명주기와 일치하지 않는 것이 문제임을 확인함. 현재는 `tools.py`가 import되는 모든 상황(서버 실행, `test.py`, `visualization.py` 등)에서 매번 생성되지만, `lifespan`으로 옮기면 서버가 실제로 시작할 때 한 번만 생성되도록 통제 가능함.
+
+**개념이 포함된 섹션**
+
+Network
