@@ -679,3 +679,27 @@ CGI, WSGI, ASGI 표준의 차이와 등장 배경. Python 인터프리터, Uvico
 **개념이 포함된 섹션**
 
 Network
+
+### 의사결정 정리 - /query API 설계
+
+**문제 상황**
+
+10개 테스트 케이스 화면을 구성하기 위해 서버 API를 어떻게 설계할지 결정 필요. 케이스별 API 분리 여부, 통신 방식(HTTP vs WebSocket), 케이스 진행 스크립트를 서버와 클라이언트 중 어디서 관리할지 결정 필요.
+
+**고려한 옵션**
+
+- 통신 방식: request-response(HTTP) vs WebSocket. WebSocket은 서버가 클라이언트 요청 없이 먼저 메시지를 보낼 수 있다는 이점이 있으나, 지금 화면 구조(모든 진행이 "다음" 버튼 클릭으로 시작됨)에서는 이 이점을 쓸 지점이 없음. 세션 상태도 이미 LangGraph checkpointer의 thread_id로 관리되고 있어, WebSocket의 "연결이 곧 세션"이라는 이점도 중복됨.
+- API 구조: 케이스별 API 10개 분리 vs 공통 API 1개(`/query`). 케이스별로 API를 분리하면 그래프 구조 변경 시 10곳을 동시에 수정해야 함.
+- 케이스 활성화/비활성화: 별도 API로 서버가 관리 vs 클라이언트가 thread_id 발급/폐기만으로 처리. MemorySaver는 특정 thread_id만 선택적으로 삭제하는 기능을 기본 제공하지 않음.
+- 케이스 진행 스크립트(다음에 무엇을 보낼지): 서버가 관리 vs 클라이언트가 정적 데이터로 관리. `/query`는 실제 서비스에서는 자유 입력을 받는 용도이므로, 케이스 스크립트는 화면 쪽 관심사로 분리하는 것이 타당함.
+
+**결정 및 이유**
+
+- 통신 방식은 request-response(HTTP)로 결정. 서버가 먼저 메시지를 보낼 필요가 없고, 세션 관리는 이미 thread_id로 해결되어 있어 WebSocket 도입 비용(연결 관리, 재연결, 메시지 타입 설계) 대비 이점이 없음.
+- API는 `/query` 하나로 통합. thread_id로 케이스를 구분하고, 요청은 `thread_id`, `message`, `confirm`(상호 배타적) 세 필드로, 응답은 `is_interrupted`, `is_finished`, `date` 세 필드로 확정.
+- 내가 제안했던 케이스 활성화/비활성화 API는 만들지 않음. 케이스를 열 때 클라이언트가 새 thread_id를 발급하고, 닫을 때는 별도 요청 없이 thread_id를 버리는 방식으로 처리. MemorySaver에 thread_id가 계속 쌓이는 점은 인지하고 있으며, 실서비스 단계의 Checkpointer 백엔드 전환(SqliteSaver/PostgresSaver) 작업과 함께 다룰 예정.
+- 케이스 진행 스크립트는 클라이언트가 정적 데이터로 보유.
+
+**개념이 포함된 섹션**
+
+AI
