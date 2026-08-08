@@ -1,7 +1,7 @@
 import './App.css'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
-import { CaseListPage } from './pages/CaseListPage'
-import { CaseChatPage } from './pages/CaseChatPage'
+import { CaseListPage } from '@/pages/CaseListPage'
+import { CaseChatPage } from '@/pages/CaseChatPage'
 
 export default function App() {
   return (

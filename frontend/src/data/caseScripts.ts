@@ -1,5 +1,5 @@
 // data/caseScripts.ts
-import type { CaseScript } from '../types'
+import type { CaseScript } from '@/types'
 
 export const caseScripts: CaseScript[] = [
   {

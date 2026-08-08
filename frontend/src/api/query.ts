@@ -1,6 +1,6 @@
 // api/query.ts
-import type { QueryRequest, QueryResponse } from '../types'
-import { API_BASE_URL } from './config'
+import type { QueryRequest, QueryResponse } from '@/types'
+import { API_BASE_URL } from '@/api/config'
 
 export async function postQuery(request: QueryRequest): Promise<QueryResponse> {
   const response = await fetch(`${API_BASE_URL}/query`, {
