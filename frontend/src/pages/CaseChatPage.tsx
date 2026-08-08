@@ -60,10 +60,8 @@ export function CaseChatPage() {
         setInterruptDate(response.date)
       } else if (response.is_finished) {
         setIsFinished(true)
-        setStepIndex((prev) => prev + 1)
-      } else {
-        setStepIndex((prev) => prev + 1)
       }
+      setStepIndex((prev) => prev + 1)
     } finally {
       setIsLoading(false)
     }
@@ -123,10 +121,28 @@ export function CaseChatPage() {
           </DialogHeader>
           <p>{interruptDate}에 저장하시겠습니까?</p>
           <DialogFooter>
-            <Button onClick={handleConfirm} disabled={isLoading}>
-              {currentStep && 'confirm' in currentStep && currentStep.confirm
-                ? '승인'
-                : '거부'}
+            <Button
+              onClick={handleConfirm}
+              disabled={
+                isLoading ||
+                !currentStep ||
+                !('confirm' in currentStep) ||
+                currentStep.confirm !== true
+              }
+            >
+              승인
+            </Button>
+            <Button
+              onClick={handleConfirm}
+              disabled={
+                isLoading ||
+                !currentStep ||
+                !('confirm' in currentStep) ||
+                currentStep.confirm !== false
+              }
+              variant="outline"
+            >
+              거부
             </Button>
           </DialogFooter>
         </DialogContent>
