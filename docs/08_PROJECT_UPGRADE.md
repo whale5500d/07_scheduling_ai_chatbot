@@ -75,9 +75,8 @@ graph TD;
         judge_response -.-> __end__;
         judge_response -.-> call_model;
         judge_response -.-> judge_date;
-        judge_schedule -.-> __end__;
-        judge_schedule -.-> judge_response;
         tools --> call_model;
+        judge_schedule --> __end__;
         save_rdb --> __end__;
         classDef default fill:#f2f0ff,line-height:1.2
         classDef first fill-opacity:0
@@ -85,6 +84,17 @@ graph TD;
 ```
 
 ## 테스트 케이스
+
+- 케이스 1 - 일정 질문 X - 즉시 END
+- 케이스 2 - 일정 질문 O, 긍정 응답, 날짜 O, 저장 승인 - judge_date, save_rdb 진행
+- 케이스 3 - 일정 질문 O, 긍정 응답, 날짜 O, 저장 거부 - END
+- 케이스 4 - 일정 질문 O, 긍정 응답, 날짜 X, 저장 승인 - judge_date, save_rdb 진행
+- 케이스 5 - 일정 질문 O, 긍정 응답, 날짜 X, 저장 거부 - END
+- 케이스 6 - 일정 질문 O, 애매한 응답(긍정으로 추론 가능), 날짜 O, 저장 승인 - saved_rdb 진행
+- 케이스 7 - 일정 질문 O, 애매한 응답(긍정으로 추론 가능), 날짜 O, 저장 거부 - END
+- 케이스 8 - 일정 질문 O, 부정 응답 - END
+- 케이스 9 - 일정 질문 O, 애매한 응답(부정으로 추론 가능) - END
+- 케이스 10 - 일정 질문 O, 애매한 응답(추론 불가능) - END
 
 ## DB
 
