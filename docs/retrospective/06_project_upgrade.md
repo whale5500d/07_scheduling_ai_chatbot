@@ -655,3 +655,79 @@ LangGraph 그래프 구조를 markdown 문서에 시각화하기 위해 `get_gra
 **개념이 포함된 섹션**
 
 AI
+
+### 개념 학습 정리 - Uvicorn/FastAPI 애플리케이션 생명주기와 lifespan 이동 근거
+
+**문제 상황**
+
+`tools.py`에 벡터DB 생성 함수(`build_vector_store()`)가 모듈 최상단에서 즉시 실행되도록 작성되어 있음. 이를 FastAPI의 `lifespan`으로 옮기려 했으나, 왜 옮겨야 하는지 서버 실행 흐름 관점에서 근거를 설명하지 못함.
+
+**부족한 개념**
+
+CGI, WSGI, ASGI 표준의 차이와 등장 배경. Python 인터프리터, Uvicorn, FastAPI(Starlette) 세 주체가 서버 실행 과정에서 각각 언제, 무엇을 하는지에 대한 시간 순서. `scope`, `receive`, `send`로 이루어지는 ASGI 통신 방식과, 이 통신이 애플리케이션 생명주기(lifespan)와 맺는 관계.
+
+**알게 된 사실**
+
+- CGI, WSGI, ASGI는 웹 서버와 웹 애플리케이션(프레임워크)이 서로 통신하는 방식에 대한 표준 규격이며, Python 웹 생태계의 파편화 문제를 해결하기 위해 순서대로 등장함. WSGI(PEP 333/3333)는 Phillip J. Eby가 2003년 12월 제안했고, ASGI는 이후 비동기 처리 필요성에 따라 WSGI를 확장한 규격.
+- 웹 서버(Uvicorn)와 웹 프레임워크(FastAPI)는 역할이 다름. 웹 서버는 네트워크 연결과 HTTP 프로토콜 처리를, 웹 프레임워크는 라우팅과 비즈니스 로직 처리를 담당하며, 이 둘을 표준 규격으로 분리해 서로 다른 조합을 자유롭게 쓸 수 있게 함.
+- `uvicorn main:app` 실행 시, Python 인터프리터가 Uvicorn 코드를 먼저 실행하고, 그 안에서 `main:app` 인자를 `main`(모듈 import)과 `app`(속성 추출) 두 단계로 나눠 처리함. 이 과정에서 `main.py`가 한 줄씩 실행되며 `FastAPI(...)` 객체가 생성됨.
+- `FastAPI(...)` 생성 시 `lifespan` 함수는 실행되지 않고, FastAPI → Starlette → Router 순으로 전달되어 `lifespan_context`라는 이름으로 저장만 됨.
+- `main.py` 전체 import가 끝난 뒤, Uvicorn이 `app(scope, receive, send)` 형태로 Router를 호출하고, `lifespan.startup` 메시지를 보내야 비로소 저장해뒀던 `lifespan` 함수 내부(`yield` 이전) 코드가 처음 실행됨. 종료 시에는 `lifespan.shutdown` 메시지로 `yield` 이후 코드(정리 로직)가 실행됨.
+- 애플리케이션 생명주기(startup ~ shutdown)는 Uvicorn이 관리하며, FastAPI/Starlette는 그 생명주기 안에서 시작/종료 시점에 무엇을 할지 정의하는 자리(`lifespan` 함수)만 제공함.
+- 이를 근거로, `build_vector_store()`가 SOLID 원칙 중 단일 책임 원칙에 부합하지 않을 뿐 아니라, 더 근본적으로는 생성 시점이 애플리케이션 생명주기와 일치하지 않는 것이 문제임을 확인함. 현재는 `tools.py`가 import되는 모든 상황(서버 실행, `test.py`, `visualization.py` 등)에서 매번 생성되지만, `lifespan`으로 옮기면 서버가 실제로 시작할 때 한 번만 생성되도록 통제 가능함.
+
+**개념이 포함된 섹션**
+
+Network
+
+### 의사결정 정리 - /query API 설계
+
+**문제 상황**
+
+10개 테스트 케이스 화면을 구성하기 위해 서버 API를 어떻게 설계할지 결정 필요. 케이스별 API 분리 여부, 통신 방식(HTTP vs WebSocket), 케이스 진행 스크립트를 서버와 클라이언트 중 어디서 관리할지 결정 필요.
+
+**고려한 옵션**
+
+- 통신 방식: request-response(HTTP) vs WebSocket. WebSocket은 서버가 클라이언트 요청 없이 먼저 메시지를 보낼 수 있다는 이점이 있으나, 지금 화면 구조(모든 진행이 "다음" 버튼 클릭으로 시작됨)에서는 이 이점을 쓸 지점이 없음. 세션 상태도 이미 LangGraph checkpointer의 thread_id로 관리되고 있어, WebSocket의 "연결이 곧 세션"이라는 이점도 중복됨.
+- API 구조: 케이스별 API 10개 분리 vs 공통 API 1개(`/query`). 케이스별로 API를 분리하면 그래프 구조 변경 시 10곳을 동시에 수정해야 함.
+- 케이스 활성화/비활성화: 별도 API로 서버가 관리 vs 클라이언트가 thread_id 발급/폐기만으로 처리. MemorySaver는 특정 thread_id만 선택적으로 삭제하는 기능을 기본 제공하지 않음.
+- 케이스 진행 스크립트(다음에 무엇을 보낼지): 서버가 관리 vs 클라이언트가 정적 데이터로 관리. `/query`는 실제 서비스에서는 자유 입력을 받는 용도이므로, 케이스 스크립트는 화면 쪽 관심사로 분리하는 것이 타당함.
+
+**결정 및 이유**
+
+- 통신 방식은 request-response(HTTP)로 결정. 서버가 먼저 메시지를 보낼 필요가 없고, 세션 관리는 이미 thread_id로 해결되어 있어 WebSocket 도입 비용(연결 관리, 재연결, 메시지 타입 설계) 대비 이점이 없음.
+- API는 `/query` 하나로 통합. thread_id로 케이스를 구분하고, 요청은 `thread_id`, `message`, `confirm`(상호 배타적) 세 필드로, 응답은 `is_interrupted`, `is_finished`, `date` 세 필드로 확정.
+- 내가 제안했던 케이스 활성화/비활성화 API는 만들지 않음. 케이스를 열 때 클라이언트가 새 thread_id를 발급하고, 닫을 때는 별도 요청 없이 thread_id를 버리는 방식으로 처리. MemorySaver에 thread_id가 계속 쌓이는 점은 인지하고 있으며, 실서비스 단계의 Checkpointer 백엔드 전환(SqliteSaver/PostgresSaver) 작업과 함께 다룰 예정.
+- 케이스 진행 스크립트는 클라이언트가 정적 데이터로 보유.
+
+**개념이 포함된 섹션**
+
+AI
+
+### 에러 원인 규명 - is_finished 판단 시 get_state().next/tasks 신뢰 불가
+
+**문제 상황**
+
+`/query` 응답의 `is_finished` 필드를, `graph.get_state(config).next`가 빈 튜플인지로 판단하도록 구현함. 케이스 3의 interrupt 발생 시점(confirm_save에서 대기 중)에도 `is_finished`가 `True`로 잘못 반환됨.
+
+**원인 분석**
+
+`interrupt()`는 노드 실행 도중 예외를 발생시켜 그래프 실행을 중단시키는 방식으로 동작하며, 이 중단 시점에 `get_state(config).next`와 `.tasks`를 직접 출력해 확인한 결과 둘 다 빈 값(`()`)으로 나옴. 즉 interrupt 상태에서 "다음 실행할 노드가 없다"는 것과 "그래프가 END까지 실행이 끝났다"는 것을 이 두 값만으로는 구분할 수 없음이 실측으로 확인됨.
+
+**결정 및 대응**
+
+`get_state().next`/`.tasks` 대신, `graph.invoke()`가 반환한 State 값(`pending_question`, `response_verdict`)의 조합으로 판단하도록 변경함.
+
+- interrupt는 `"__interrupt__"` 키 존재 여부로 별도 판단.
+- 그 외 END 중 "질문만 판정되고 아직 응답을 기다리는 상태"(`pending_question`은 있고 `response_verdict`는 없음)만 미완료로 판단.
+- 나머지 모든 경우(질문 아님, 부정 판정, 저장 완료, 저장 거부)는 완료로 판단.
+
+케이스 2(1턴), 케이스 8(1턴/2턴), 케이스 3(1~3턴) 시나리오로 검증해 기대값과 실제 응답이 모두 일치함을 확인함.
+
+**인사이트**
+
+`is_interrupted` 하나만으로 `is_finished`를 판단하면 부족하다는 점을 확인함. 질문만 판정되고 아직 응답을 기다리는 상태(interrupt는 아니지만 END도 아닌 상태)가 별도로 존재하기 때문.
+
+**개념이 포함된 섹션**
+
+AI

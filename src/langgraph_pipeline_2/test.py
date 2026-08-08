@@ -14,7 +14,7 @@ def print_result(label: str, result: AgentState):
     print(f"  pending_question: {result.get('pending_question')}")
     print("===================================================")
 
-# 케이스 1 (일정 질문 X - 즉시 END)
+# 케이스 1 - 일정 질문 X - 즉시 END
 config: RunnableConfig = {"configurable": {"thread_id": "case-1"}}
 case1_result = graph.invoke({
         "messages": [HumanMessage(content="내일 산책 할거야")],
