@@ -69,8 +69,11 @@ def query(request: QueryRequest) -> QueryResponse:
         date = None
 
     # 5. is_finished 판단
-    state_snapshot = graph.get_state(config)
-    is_finished = not state_snapshot.next
+    awaiting_response = (
+        invoked_result.get("pending_question") is not None
+        and invoked_result.get("response_verdict") is None
+    )
+    is_finished = not is_interrupted and not awaiting_response
 
     # 6. QueryResponse 반환
     return QueryResponse(
