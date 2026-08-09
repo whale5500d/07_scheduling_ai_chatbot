@@ -1,6 +1,7 @@
 // pages/CaseChatPage.tsx
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { v4 as uuidv4 } from 'uuid'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -27,7 +28,7 @@ export function CaseChatPage() {
 
   useEffect(() => {
     if (id) {
-      setThreadId(`case-${id}-${crypto.randomUUID()}`)
+      setThreadId(`case-${id}-${uuidv4()}`)
     }
   }, [id])
 
