@@ -1,0 +1,10 @@
+services:
+  scheduling-chatbot:
+    image: 668425684373.dkr.ecr.ap-northeast-2.amazonaws.com/scheduling-chatbot:latest
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    volumes:
+      - /home/ubuntu/.cache/huggingface:/data/hf_cache
+    restart: unless-stopped
