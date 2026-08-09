@@ -1,24 +1,28 @@
 // api/query.ts
 import type { QueryRequest, QueryResponse } from '@/types'
 import { mockResponseSequences } from '@/api/mockResponses'
-import { API_BASE_URL } from '@/api/config'
+import { API_BASE_URL, USE_MOCK_DATA } from '@/api/config'
 
 const mockCallCounts = new Map<string, number>()
 
 export async function postQuery(request: QueryRequest): Promise<QueryResponse> {
-  return mockPostQuery(request)
+  // 1. Mock Data
+  if (USE_MOCK_DATA) {
+    return mockPostQuery(request)
+  }
 
-  // const response = await fetch(`${API_BASE_URL}/query`, {
-  //   method: 'POST',
-  //   headers: { 'Content-Type': 'application/json' },
-  //   body: JSON.stringify(request),
-  // })
+  // 2. API
+  const response = await fetch(`${API_BASE_URL}/query`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
 
-  // if (!response.ok) {
-  //   throw new Error(`/query 요청 실패: ${response.status}`)
-  // }
+  if (!response.ok) {
+    throw new Error(`/query 요청 실패: ${response.status}`)
+  }
 
-  // return response.json()
+  return response.json()
 }
 
 function mockPostQuery(request: QueryRequest): Promise<QueryResponse> {

@@ -5,3 +5,4 @@
 // 전환 시 클라이언트 컨테이너가 /api 요청을 서버 컨테이너로 프록시하고,
 // 브라우저는 클라이언트 포트 하나만 호출하도록 구성 예정.
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+export const USE_MOCK_DATA = import.meta.env.VITE_USE_MOCK_DATA === 'true'
