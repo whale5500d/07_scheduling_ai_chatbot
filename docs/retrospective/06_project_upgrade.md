@@ -731,3 +731,66 @@ AI
 **개념이 포함된 섹션**
 
 AI
+
+### 에러 원인 규명 - EC2 배포 중 발생한 오류 세 가지
+
+**문제 상황**
+
+로컬 검증을 마친 프론트엔드를 EC2에 배포하는 과정에서 세 가지 에러가 순차적으로 발생함.
+
+**원인 분석**
+
+1. `git pull` 시 EC2에 남아있던 untracked 파일(Dockerfile, docker-compose.yml 등)과 변경된 uv.lock이 원격 최신 커밋과 충돌해 merge가 거부됨.
+2. `scp -r frontend/dist ubuntu@...:/tmp/scheduling-frontend` 실행 시, 목적지 디렉토리(`/tmp/scheduling-frontend`)가 이미 존재해 scp가 그 안에 `dist`라는 하위 폴더를 한 번 더 만듦. 이후 `mv`로 옮긴 결과 `/var/www/scheduling-frontend/dist/index.html` 구조가 되어, Nginx의 `root` 설정이 바라보는 최상위 경로에는 `index.html`이 없었음. `try_files $uri /index.html;`이 폴백 대상조차 찾지 못해 "rewrite or internal redirection cycle" 에러가 반복됨.
+3. `crypto.randomUUID()`는 Web Crypto API 중 보안 컨텍스트(HTTPS 또는 localhost)에서만 동작하는 함수인데, EC2는 HTTP로 서빙되고 있어 브라우저가 이 함수를 노출하지 않아 `TypeError`가 발생함.
+
+**결정 및 대응**
+
+1. EC2에 남아있던 기존 파일들을 제거하고 재pull함.
+2. `dist/` 하위 폴더의 파일들을 상위(`/var/www/scheduling-frontend/`)로 이동하고 빈 `dist` 폴더를 제거함.
+3. `crypto.randomUUID()`를 `uuid` 패키지(`v4`)로 교체해 HTTP 환경에서도 동작하도록 수정함.
+
+**인사이트**
+
+HTTP로 배포하면 Web Crypto API 등 보안 컨텍스트 전용 브라우저 기능이 제한된다는 점을 실제로 겪어 확인함. 실제 도메인/HTTPS 연결 이전까지는 이런 API를 프론트 코드에서 직접 의존하지 않는 방향이 안전함을 인지함.
+
+**개념이 포함된 섹션**
+
+Network
+
+### 개념 학습 정리 - 리버스 프록시와 CORS의 관계
+
+**문제 상황**
+
+EC2 배포 시 FastAPI의 CORSMiddleware `allow_origins`에 EC2 IP를 추가하지 않았는데도, 프론트에서 백엔드로의 요청이 정상 동작함을 확인함. 로컬 개발 환경에서는 CORS 설정이 필요했던 것과 달라 원인 파악이 필요했음.
+
+**부족한 개념**
+
+브라우저의 CORS 정책이 정확히 어떤 조건에서 적용되는지, 그리고 리버스 프록시 구조가 이 조건에 어떤 영향을 주는지.
+
+**알게 된 사실**
+
+CORS는 브라우저가 "현재 페이지가 로드된 origin"과 "요청 대상 origin"이 다를 때만 관여하는 정책. 로컬 개발 환경(`localhost:5173` → `127.0.0.1:8000`)은 포트가 달라 서로 다른 origin으로 취급되어 CORS 검사가 발생함. 반면 EC2 배포 환경은 `VITE_API_BASE_URL`을 빈 값(상대 경로)으로 설정해 요청 주소가 `/query`가 되고, 브라우저는 이를 현재 페이지와 동일한 origin(`http://<EC2 IP>`)으로의 요청으로 해석함. Nginx가 이 요청을 내부적으로 8000번 컨테이너로 프록시하는 과정은 브라우저가 관여하지 않는 서버 내부 통신이라, 브라우저의 CORS 정책과 무관함. 결과적으로 프론트와 백엔드를 하나의 origin(리버스 프록시)으로 묶으면 CORS 문제 자체가 발생하지 않게 됨.
+
+**개념이 포함된 섹션**
+
+Network
+
+### 의사결정 정리 - 프론트 배포 방식
+
+**문제 상황**
+
+EC2에 프론트엔드를 어떻게 배포할지 결정 필요. 별도 포트로 컨테이너를 띄우는 방식과, 기존에 EC2에 구성되어 있던 Nginx를 활용하는 방식 중 선택 필요.
+
+**고려한 옵션**
+
+- 별도 포트(docker run으로 프론트 컨테이너를 새 포트에 띄움): 보안 그룹에 새 포트 추가 필요, 프론트/백엔드가 서로 다른 origin이 되어 CORS 설정 유지 필요.
+- Nginx 리버스 프록시 활용: EC2에 이미 구성되어 있던 Nginx(`/etc/nginx/sites-enabled/`)가 기존에는 모든 경로(`/`)를 백엔드로 프록시하고 있었음. 이를 `/query`는 백엔드로, `/`는 정적 파일로 분리하면 보안 그룹 변경 없이 기존 포트(80) 하나로 서빙 가능.
+
+**결정 및 이유**
+
+Nginx 리버스 프록시 방식으로 결정함. 이미 구성되어 있던 인프라를 재사용해 보안 그룹에 새 포트를 열 필요가 없고, 프론트-백엔드가 동일 origin이 되어 CORS 문제도 자연히 해소됨. 프론트 빌드 결과물(`pnpm build`)은 정적 파일로 `/var/www/scheduling-frontend`에 배치하고 Nginx가 직접 서빙함.
+
+**개념이 포함된 섹션**
+
+Network
