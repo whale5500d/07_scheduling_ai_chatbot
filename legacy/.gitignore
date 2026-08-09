@@ -57,6 +57,3 @@ tokenizer_*.json
 
 # Log files
 *.log
-
-# Docker
-docker-compose.override.yml

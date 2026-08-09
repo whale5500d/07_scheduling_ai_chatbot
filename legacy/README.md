@@ -11,7 +11,7 @@
 | 2 | Vanilla RAG Architecture 구현 | ✅ | [바로가기](./docs/02_RAG_INTEGRATION.md) |
 | 3 | LangChain Migration | ✅ | [바로가기](./docs/03_LANGCHAIN_MIGRATION_PLAN.md) |
 | 4 | LangGraph Migration | ✅ | [바로가기](./docs/04_LANGGRAPH_MIGRATION_PLAN.md) |
-| 5 | AI Agent Transformation | ✅ | [바로가기](./docs/05_AI_AGENT_TRANSITION.md) |
+| 5 | AI Agent Transformation | ✅ | [바로가기](./docs/05_AI_AGENT_TRANSFORMATION.md) |
 
 ## 실행 방법
 

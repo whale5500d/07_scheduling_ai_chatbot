@@ -55,8 +55,5 @@ dev = [
 ]
 
 [tool.taskipy.tasks]
-start-main = "uv run --env-file .env uvicorn main:app --reload"
 test = "pytest tests/ -v"
-test2 = "uv run --env-file .env python -m src.langgraph_pipeline_2.test"
 type-check = "pyright"
-visualization = "uv run --env-file .env python -m scripts.visualization"
