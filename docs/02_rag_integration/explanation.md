@@ -143,7 +143,3 @@ Transformer를 전환할 수 있다.
   아니라, 전체 생성 후 단어 단위로 잘라 흘려보내는 방식이다.
 - `src/main.py`를 책임 단위(`RagPipeline` 클래스 등)로 재구성하는 작업은
   설계만 논의되었고 아직 코드에 반영되지 않았다.
-
-## 관련 회고록
-
-- [[바로가기](./retrospective/retrospective_integration.md)]
