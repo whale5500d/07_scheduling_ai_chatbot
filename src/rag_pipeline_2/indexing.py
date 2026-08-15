@@ -3,10 +3,10 @@ from pathlib import Path
 
 from langchain_core.documents import Document
 from langchain_core.vectorstores import InMemoryVectorStore
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.embeddings import FastEmbedEmbeddings
 
 FILE_PATH = "./data/project_upgrade_retrospective.md"
-EMBEDDING_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 SECTION_HEADER_PATTERN = re.compile(r"(?=^### )", re.MULTILINE)
 
 
@@ -27,7 +27,7 @@ def build_vector_store() -> InMemoryVectorStore:
         documents.append(Document(page_content=section_text, metadata={"title": title}))
 
     # 4. 임베딩
-    embeddings = HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL_NAME)
+    embeddings = FastEmbedEmbeddings(model_name=EMBEDDING_MODEL_NAME)
 
     # 5. 벡터DB 저장
     vector_store = InMemoryVectorStore(embeddings)

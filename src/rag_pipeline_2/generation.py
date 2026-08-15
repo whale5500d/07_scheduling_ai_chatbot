@@ -1,68 +1,57 @@
+import json
 from collections.abc import Iterator
-from threading import Thread
-from typing import Callable, cast
 
-import torch
-from transformers import (
-    AutoModelForCausalLM,
-    AutoTokenizer,
-    PreTrainedModel,
-    PreTrainedTokenizer,
-    TextIteratorStreamer,
-)
+import httpx
 
 from rag_pipeline_2.schemas import ChatMessage
 
-MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
+VLLM_BASE_URL = "http://127.0.0.1:8001"
+VLLM_MODEL_NAME = "Qwen/Qwen2.5-3B-Instruct"
 MAX_NEW_TOKENS = 512
 
 
-def load_model_and_tokenizer() -> tuple[PreTrainedModel, PreTrainedTokenizer]:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForCausalLM.from_pretrained(MODEL_NAME, torch_dtype=torch.float16, device_map="auto")
-    return model, tokenizer
-
-
-def _build_prompt_input_ids(tokenizer: PreTrainedTokenizer, model: PreTrainedModel, messages: list[ChatMessage]):
-    chat_messages = [{"role": message.role, "content": message.content} for message in messages]
-    prompt_text = cast(str, tokenizer.apply_chat_template(chat_messages, tokenize=False, add_generation_prompt=True))
-    return tokenizer(prompt_text, return_tensors="pt").to(model.device)
+def _build_request_payload(messages: list[ChatMessage], max_new_tokens: int, stream: bool) -> dict:
+    return {
+        "model": VLLM_MODEL_NAME,
+        "messages": [message.model_dump() for message in messages],
+        "max_tokens": max_new_tokens,
+        "stream": stream,
+    }
 
 
 def generate_response(
-    model: PreTrainedModel,
-    tokenizer: PreTrainedTokenizer,
     messages: list[ChatMessage],
     max_new_tokens: int = MAX_NEW_TOKENS,
 ) -> tuple[str, int, int]:
-    input_ids = _build_prompt_input_ids(tokenizer, model, messages)
+    payload = _build_request_payload(messages, max_new_tokens, stream=False)
+    response = httpx.post(f"{VLLM_BASE_URL}/v1/chat/completions", json=payload, timeout=120.0)
+    response.raise_for_status()
+    response_body = response.json()
 
-    generate = cast(Callable[..., torch.LongTensor], model.generate)
-    output_ids = generate(**input_ids, max_new_tokens=max_new_tokens)
-    generated_ids = output_ids[0][input_ids["input_ids"].shape[1]:]
-    response_text = cast(str, tokenizer.decode(generated_ids, skip_special_tokens=True))
+    response_text = response_body["choices"][0]["message"]["content"]
+    prompt_tokens = response_body["usage"]["prompt_tokens"]
+    completion_tokens = response_body["usage"]["completion_tokens"]
 
-    prompt_token_count = input_ids["input_ids"].shape[1]
-    completion_token_count = generated_ids.shape[0]
-
-    return response_text, prompt_token_count, completion_token_count
+    return response_text, prompt_tokens, completion_tokens
 
 
 def stream_response(
-    model: PreTrainedModel,
-    tokenizer: PreTrainedTokenizer,
     messages: list[ChatMessage],
     max_new_tokens: int = MAX_NEW_TOKENS,
 ) -> Iterator[str]:
-    input_ids = _build_prompt_input_ids(tokenizer, model, messages)
-    streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+    payload = _build_request_payload(messages, max_new_tokens, stream=True)
 
-    generate = cast(Callable[..., None], model.generate)
-    generation_kwargs = dict(input_ids, max_new_tokens=max_new_tokens, streamer=streamer)
-    generation_thread = Thread(target=generate, kwargs=generation_kwargs)
-    generation_thread.start()
+    with httpx.stream("POST", f"{VLLM_BASE_URL}/v1/chat/completions", json=payload, timeout=120.0) as response:
+        response.raise_for_status()
+        for line in response.iter_lines():
+            if not line.startswith("data: "):
+                continue
 
-    for token_text in streamer:
-        yield token_text
+            data = line.removeprefix("data: ")
+            if data == "[DONE]":
+                break
 
-    generation_thread.join()
+            chunk = json.loads(data)
+            delta_content = chunk["choices"][0]["delta"].get("content")
+            if delta_content:
+                yield delta_content

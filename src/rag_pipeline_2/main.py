@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 
 from rag_pipeline_2.augmentation import build_augmented_messages
-from rag_pipeline_2.generation import MAX_NEW_TOKENS, generate_response, load_model_and_tokenizer, stream_response
+from rag_pipeline_2.generation import MAX_NEW_TOKENS, generate_response, stream_response
 from rag_pipeline_2.indexing import build_vector_store
 from rag_pipeline_2.retriever import retrieve_relevant_documents
 from rag_pipeline_2.schemas import (
@@ -24,9 +24,6 @@ from rag_pipeline_2.schemas import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.vector_store = build_vector_store()
-    model, tokenizer = load_model_and_tokenizer()
-    app.state.model = model
-    app.state.tokenizer = tokenizer
     yield
 
 
@@ -44,15 +41,13 @@ def _format_sse_chunk(chunk: ChatCompletionChunk) -> str:
 
 
 def _stream_chat_completion_chunks(
-    model,
-    tokenizer,
     augmented_messages: list[ChatMessage],
     model_name: str,
     max_new_tokens: int,
 ) -> Iterator[str]:
     chunk_id = f"chatcmpl-{uuid.uuid4().hex}"
 
-    for token_text in stream_response(model, tokenizer, augmented_messages, max_new_tokens):
+    for token_text in stream_response(augmented_messages, max_new_tokens):
         chunk = ChatCompletionChunk(
             id=chunk_id,
             model=model_name,
@@ -85,22 +80,11 @@ def chat_completions(
 
     if chat_request.stream:
         return StreamingResponse(
-            _stream_chat_completion_chunks(
-                http_request.app.state.model,
-                http_request.app.state.tokenizer,
-                augmented_messages,
-                chat_request.model,
-                max_new_tokens,
-            ),
+            _stream_chat_completion_chunks(augmented_messages, chat_request.model, max_new_tokens),
             media_type="text/event-stream",
         )
 
-    response_text, prompt_tokens, completion_tokens = generate_response(
-        http_request.app.state.model,
-        http_request.app.state.tokenizer,
-        augmented_messages,
-        max_new_tokens,
-    )
+    response_text, prompt_tokens, completion_tokens = generate_response(augmented_messages, max_new_tokens)
 
     response_message = ChatMessage(role="assistant", content=response_text)
     choice = ChatCompletionResponseChoice(message=response_message)
