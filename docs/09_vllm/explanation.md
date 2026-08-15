@@ -52,7 +52,7 @@ uv run vllm bench serve \
 표 1. 부하 조건
 | 파라미터 | 값 |
 |---|---|
-| 모델 | Qwen/Qwen2.5-3B-Instruct (bfloat16, 원본 정밀도) |
+| 모델 | Qwen/Qwen2.5-3B-Instruct (float16) |
 | 서빙 방식 | Transformers model.generate() 직접 호출 (배칭 없음) |
 | 측정 도구 | vllm bench serve (backend openai-chat) |
 | Dataset | random |
@@ -70,25 +70,27 @@ uv run vllm bench serve \
 |---|---|
 | Successful requests | 20 |
 | Failed requests | 0 |
-| Benchmark duration (s) | 273.47 |
+| Benchmark duration (s) | 185.98 |
 | Total input tokens | 2560 |
-| Total generated tokens | 2377 |
-| Request throughput (req/s) | 0.07 |
-| Output token throughput (tok/s) | 8.69 |
-| Peak output token throughput (tok/s) | 20.00 |
-| Peak concurrent requests | 7.00 |
-| Total token throughput (tok/s) | 18.05 |
-| Mean TTFT (Time To First Token, 첫 토큰까지 시간) (ms) | 11541.47 |
-| Median TTFT (ms) | 9061.44 |
-| P99 TTFT (ms) | 20619.26 |
-| Mean TPOT (Time Per Output Token) (ms) | 361.42 |
-| Mean ITL (Inter-token Latency) (ms) | 351.36 |
-| P99 ITL (ms) | 3989.50 |
-| Mean E2EL (End-to-End Latency) (ms) | 53739.27 |
-| Median E2EL (ms) | 60086.01 |
-| P99 E2EL (ms) | 63460.67 |
+| Total generated tokens | 2380 |
+| Request throughput (req/s) | 0.11 |
+| Output token throughput (tok/s) | 12.80 |
+| Peak output token throughput (tok/s) | 21.00 |
+| Peak concurrent requests | 6.00 |
+| Total token throughput (tok/s) | 26.56 |
+| Mean TTFT (Time To First Token, 첫 토큰까지 시간) (ms) | 2370.07 |
+| Median TTFT (ms) | 1689.12 |
+| P99 TTFT (ms) | 5232.24 |
+| Mean TPOT (Time Per Output Token) (ms) | 290.51 |
+| Mean ITL (Inter-token Latency) (ms) | 283.82 |
+| P99 ITL (ms) | 1164.54 |
+| Mean E2EL (End-to-End Latency) (ms) | 36485.33 |
+| Median E2EL (ms) | 38056.90 |
+| P99 E2EL (ms) | 45133.91 |
 
 ## 확인된 사실
 
-- 요청의 출력 길이(128)를 서버가 반영하도록 수정하고, 클라이언트에 --ignore-eos를 적용한 뒤 재측정함. Total generated tokens 2377은 목표치(20×128=2560)에 근접함. 완전히 일치하지 않는 이유는 서버와 클라이언트가 토큰 수를 각자의 토크나이저로 별도 계산하기 때문임.
-- 배칭 없이 순차 처리되어, Max Concurrency 4 기준 Mean TTFT 11541.47ms, Mean E2EL 53739.27ms로 대기(큐잉) 효과가 반영됨.
+- 요청의 출력 길이(128)를 서버가 반영하도록 수정하고, 클라이언트에 --ignore-eos를 적용한 뒤 재측정함. Total generated tokens는 목표치(20×128=2560)에 근접함. 완전히 일치하지 않는 이유는 서버와 클라이언트가 토큰 수를 각자의 토크나이저로 별도 계산하기 때문임.
+- 배칭 없이 순차 처리되어 대기(큐잉) 효과가 반영됨.
+- Tesla T4 GPU(compute capability 7.5)는 bfloat16을 하드웨어 가속하지 않음. vLLM 엔진 서버 실행 시 이 사실이 에러로 확인됨(bfloat16은 compute capability 8.0 이상부터 지원). Transformers는 이 제약을 검사하지 않아 bfloat16으로도 에러 없이 동작했으나, 서빙 엔진 간 비교를 위해 정밀도를 float16으로 통일하고 재측정함.
+- float16 재측정 결과, bfloat16 측정 대비 Mean TTFT(11541.47ms → 2370.07ms), Mean E2EL(53739.27ms → 36485.33ms) 모두 크게 개선됨. T4에서 bfloat16이 하드웨어 가속되지 않아 비효율적인 연산 경로를 탔던 것으로 추정됨.
