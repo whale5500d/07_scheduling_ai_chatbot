@@ -4,6 +4,49 @@
 
 1단계(Transformers model.generate() 직접 호출 방식) RAG 서빙의 Throughput (처리량), Latency (지연 시간) 측정값을 기록한다. 이후 vLLM 서빙 측정 결과와 비교할 기준선으로 삼는다.
 
+## 실행 절차
+
+### py (로컬)
+
+```bash
+# 1. 의존성 설치
+uv add fastapi "uvicorn[standard]" pydantic torch transformers accelerate langchain-core langchain-huggingface sentence-transformers
+
+# 2. 서버 실행
+uv run uvicorn rag_pipeline_2.main:app --port 8000
+
+# 3. 측정 (Linux 환경에서만 가능. macOS는 vllm 패키지 미지원)
+uv add vllm
+
+mkdir -p results
+
+uv run vllm bench serve \
+    --backend openai-chat \
+    --base-url http://127.0.0.1:8000 \
+    --endpoint /v1/chat/completions \
+    --model "Qwen/Qwen2.5-3B-Instruct" \
+    --dataset-name random \
+    --num-prompts 20 \
+    --max-concurrency 4 \
+    --request-rate inf \
+    --random-input-len 128 \
+    --random-output-len 128 \
+    --ignore-eos \
+    --percentile-metrics ttft,tpot,itl,e2el \
+    --save-result \
+    --result-dir ./results \
+    --result-filename baseline_result.json
+```
+
+로컬(macOS)에서 측정은 불가하고, Linux에서만 가능함. 실제 측정은 Colab에서 ipynb으로 수행함.
+
+### ipynb (Colab)
+
+1. GPU(T4)로 설정 후 런타임 실행.
+2. retrospective.md 업로드.
+3. results/baseline_result.json 확인.
+4. 코드(스키마, 라우트 등)를 수정한 뒤에는 런타임을 재시작해야 함. 서버가 백그라운드 스레드로 이미 떠 있어서 해당 셀만 다시 실행해도 수정 사항이 반영되지 않기 때문.
+
 ## 측정 조건
 
 표 1. 부하 조건
