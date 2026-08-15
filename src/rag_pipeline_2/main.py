@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
 
 from rag_pipeline_2.augmentation import build_augmented_messages
-from rag_pipeline_2.generation import generate_response, load_model_and_tokenizer, stream_response
+from rag_pipeline_2.generation import MAX_NEW_TOKENS, generate_response, load_model_and_tokenizer, stream_response
 from rag_pipeline_2.indexing import build_vector_store
 from rag_pipeline_2.retriever import retrieve_relevant_documents
 from rag_pipeline_2.schemas import (
@@ -48,10 +48,11 @@ def _stream_chat_completion_chunks(
     tokenizer,
     augmented_messages: list[ChatMessage],
     model_name: str,
+    max_new_tokens: int,
 ) -> Iterator[str]:
     chunk_id = f"chatcmpl-{uuid.uuid4().hex}"
 
-    for token_text in stream_response(model, tokenizer, augmented_messages):
+    for token_text in stream_response(model, tokenizer, augmented_messages, max_new_tokens):
         chunk = ChatCompletionChunk(
             id=chunk_id,
             model=model_name,
@@ -77,6 +78,11 @@ def chat_completions(
     documents = retrieve_relevant_documents(http_request.app.state.vector_store, user_query)
     augmented_messages = build_augmented_messages(documents, user_query)
 
+    requested_max_tokens = chat_request.max_completion_tokens
+    if requested_max_tokens is None:
+        requested_max_tokens = chat_request.max_tokens
+    max_new_tokens = requested_max_tokens if requested_max_tokens is not None else MAX_NEW_TOKENS
+
     if chat_request.stream:
         return StreamingResponse(
             _stream_chat_completion_chunks(
@@ -84,6 +90,7 @@ def chat_completions(
                 http_request.app.state.tokenizer,
                 augmented_messages,
                 chat_request.model,
+                max_new_tokens,
             ),
             media_type="text/event-stream",
         )
@@ -92,6 +99,7 @@ def chat_completions(
         http_request.app.state.model,
         http_request.app.state.tokenizer,
         augmented_messages,
+        max_new_tokens,
     )
 
     response_message = ChatMessage(role="assistant", content=response_text)

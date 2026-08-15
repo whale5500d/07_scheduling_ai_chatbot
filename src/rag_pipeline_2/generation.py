@@ -33,11 +33,12 @@ def generate_response(
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
     messages: list[ChatMessage],
+    max_new_tokens: int = MAX_NEW_TOKENS,
 ) -> tuple[str, int, int]:
     input_ids = _build_prompt_input_ids(tokenizer, model, messages)
 
     generate = cast(Callable[..., torch.LongTensor], model.generate)
-    output_ids = generate(**input_ids, max_new_tokens=MAX_NEW_TOKENS)
+    output_ids = generate(**input_ids, max_new_tokens=max_new_tokens)
     generated_ids = output_ids[0][input_ids["input_ids"].shape[1]:]
     response_text = cast(str, tokenizer.decode(generated_ids, skip_special_tokens=True))
 
@@ -51,12 +52,13 @@ def stream_response(
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizer,
     messages: list[ChatMessage],
+    max_new_tokens: int = MAX_NEW_TOKENS,
 ) -> Iterator[str]:
     input_ids = _build_prompt_input_ids(tokenizer, model, messages)
     streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
 
     generate = cast(Callable[..., None], model.generate)
-    generation_kwargs = dict(input_ids, max_new_tokens=MAX_NEW_TOKENS, streamer=streamer)
+    generation_kwargs = dict(input_ids, max_new_tokens=max_new_tokens, streamer=streamer)
     generation_thread = Thread(target=generate, kwargs=generation_kwargs)
     generation_thread.start()
 

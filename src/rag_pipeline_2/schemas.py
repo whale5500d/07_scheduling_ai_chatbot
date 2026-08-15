@@ -14,6 +14,8 @@ class ChatCompletionRequest(BaseModel):
     model: str
     messages: list[ChatMessage]
     stream: bool = False
+    max_tokens: int | None = None
+    max_completion_tokens: int | None = None
 
 
 class UsageInfo(BaseModel):
